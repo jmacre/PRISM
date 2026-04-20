@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Android build artifacts (the android/ folder itself is tracked so the
+# project builds, but per-build outputs / caches are not).
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/captures/
+android/.idea/
+android/app/release/
+android/**/.cxx/
+
+# APK output (built artifact, not source)
+PRISM-Game.apk
+*.keystore
+
+# IDE / tools
+.vscode/
+.idea/
+.claude/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
