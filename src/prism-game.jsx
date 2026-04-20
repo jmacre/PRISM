@@ -38,6 +38,7 @@ import { PauseOverlay } from "./PauseOverlay.jsx";
 import { MainMenu } from "./MainMenu.jsx";
 import { Tutorial, TUT_STEPS } from "./Tutorial.jsx";
 import { GameOverOverlay } from "./GameOverOverlay.jsx";
+import { App as CapApp } from "@capacitor/app";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN
@@ -1022,13 +1023,14 @@ export default function PrismGame() {
   });
 
   useEffect(() => {
-    // Push a single dummy history state on mount so back button triggers
-    // popstate instead of closing the app.
-    window.history.pushState({ prism: true }, "", " ");
-    const onBack = () => {
-      // Re-push state so future back presses still fire popstate.
-      window.history.pushState({ prism: true }, "", " ");
-
+    // Use Capacitor's native backButton event on Android — it fires
+    // directly from the activity, independent of the WebView's history
+    // state. The browser popstate approach was unreliable on some
+    // Android versions because the WebView's history handling varied.
+    //
+    // Also register a popstate fallback so desktop/web browser still
+    // works sensibly (push a dummy state so back doesn't leave the page).
+    const handleBack = () => {
       const nav = navRef.current;
       if (nav.showAbout) {
         nav.setShowAbout(false);
@@ -1047,8 +1049,33 @@ export default function PrismGame() {
         nav.pauseGame();
       }
     };
-    window.addEventListener("popstate", onBack);
-    return () => window.removeEventListener("popstate", onBack);
+
+    // Native Android back button (Capacitor). Silently no-ops in the
+    // browser because CapApp.addListener throws if not on native.
+    let nativeHandle;
+    try {
+      const p = CapApp.addListener("backButton", handleBack);
+      if (p && typeof p.then === "function") {
+        p.then(h => { nativeHandle = h; }, () => {});
+      } else {
+        nativeHandle = p;
+      }
+    } catch {}
+
+    // Browser fallback.
+    window.history.pushState({ prism: true }, "", " ");
+    const onPopstate = () => {
+      window.history.pushState({ prism: true }, "", " ");
+      handleBack();
+    };
+    window.addEventListener("popstate", onPopstate);
+
+    return () => {
+      window.removeEventListener("popstate", onPopstate);
+      try {
+        nativeHandle?.remove?.();
+      } catch {}
+    };
   }, []);
 
   const toggleMusic = useCallback(() => {
