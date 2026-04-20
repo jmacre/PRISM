@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite --port 5199",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync": "cap sync android",
+    "apk:gradle": "cd android && .\\gradlew.bat assembleDebug",
+    "apk:copy": "node -e \"require('fs').copyFileSync('android/app/build/outputs/apk/debug/app-debug.apk', 'PRISM-Game.apk')\"",
+    "apk": "npm run build && npm run sync && npm run apk:gradle && npm run apk:copy"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",
