@@ -68,6 +68,7 @@ export default function PrismGame() {
   const [goReason, setGoReason] = useState("timeout");
   const [paused, setPaused] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [showAbout, setShowAbout] = useState(false);
   const [musicMuted, setMusicMuted] = useState(() => STORAGE.get("prism_music_muted", false));
   const [sfxMuted, setSfxMuted] = useState(() => STORAGE.get("prism_sfx_muted", false));
 
@@ -984,20 +985,41 @@ export default function PrismGame() {
   }, [screen, pauseGame]);
 
   // Android hardware back button — navigate in-game instead of closing
+  // the app. Routing priority:
+  //   1. About modal open          → close About
+  //   2. Tutorial open, step > 0   → previous step
+  //   3. Tutorial open, step === 0 → exit to title
+  //   4. Playing (not paused/over) → pause
+  //   5. Anything else             → do nothing (swallow the back press)
   useEffect(() => {
-    // Push a dummy history state so back button triggers popstate instead of closing
+    // Push a dummy history state so back button triggers popstate instead
+    // of closing the app.
     window.history.pushState({ prism: true }, "", " ");
     const onBack = e => {
       e.preventDefault();
-      // Re-push state so back button keeps working
+      // Re-push state so back button keeps working on subsequent presses.
       window.history.pushState({ prism: true }, "", " ");
+
+      if (showAbout) {
+        setShowAbout(false);
+        return;
+      }
+      if (showTut) {
+        if (tutStep > 0) {
+          setTutStep(tutStep - 1);
+        } else {
+          setShowTut(false);
+          setScreen("menu");
+        }
+        return;
+      }
       if (screen === "play" && !gameOvRef.current && !pausedRef.current) {
         pauseGame();
       }
     };
     window.addEventListener("popstate", onBack);
     return () => window.removeEventListener("popstate", onBack);
-  }, [screen, pauseGame]);
+  }, [screen, pauseGame, showAbout, showTut, tutStep]);
 
   const toggleMusic = useCallback(() => {
     AUDIO.init();
@@ -1950,6 +1972,9 @@ export default function PrismGame() {
             setShowTut(true);
             setTutStep(0);
           }}
+          showAbout={showAbout}
+          onOpenAbout={() => setShowAbout(true)}
+          onCloseAbout={() => setShowAbout(false)}
         />
       </>
     );

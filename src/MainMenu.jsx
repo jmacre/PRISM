@@ -1,15 +1,11 @@
-import { useState } from "react";
-
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN MENU
 // The title screen. Shows PRISM, the PLAY button, best score, and the
-// "How to Play" / "About" footer links. Self-contained — the parent only
-// has to wire up the two callbacks.
+// "How to Play" / "About" footer links. The About modal's visibility is
+// managed by the parent so the Android hardware back button can close it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function MainMenu({ best, onPlay, onOpenTutorial }) {
-  const [showAbout, setShowAbout] = useState(false);
-
+export function MainMenu({ best, onPlay, onOpenTutorial, showAbout, onOpenAbout, onCloseAbout }) {
   return (
     <div className="menu">
       <div style={{ textAlign: "center" }}>
@@ -29,17 +25,17 @@ export function MainMenu({ best, onPlay, onOpenTutorial }) {
         <button className="menu-link" onClick={onOpenTutorial}>
           How to Play
         </button>
-        <button className="menu-link" onClick={() => setShowAbout(true)}>
+        <button className="menu-link" onClick={onOpenAbout}>
           About
         </button>
       </div>
       {showAbout && (
-        <div className="tut" onClick={() => setShowAbout(false)}>
+        <div className="tut" onClick={onCloseAbout}>
           <div className="tut-card">
             <div className="tut-title">ABOUT</div>
             <div className="tut-body">PRISM was developed by James Macre.</div>
           </div>
-          <button className="menu-link" onClick={() => setShowAbout(false)}>
+          <button className="menu-link" onClick={onCloseAbout}>
             Close
           </button>
         </div>
