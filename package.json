@@ -12,6 +12,7 @@
     "apk:copy": "node -e \"const fs=require('fs'),path=require('path');const src=path.resolve('android/app/build/outputs/apk/debug/app-debug.apk');const dst=path.resolve('PRISM-Game.apk');fs.copyFileSync(src,dst);console.log('APK copied to:',dst)\"",
     "apk:copy-desktop": "node -e \"const fs=require('fs'),os=require('os'),path=require('path');const src=path.resolve('android/app/build/outputs/apk/debug/app-debug.apk');const dst=path.join(os.homedir(),'Desktop','PRISM-Game.apk');fs.mkdirSync(path.dirname(dst),{recursive:true});fs.copyFileSync(src,dst);console.log('APK copied to:',dst)\"",
     "apk:install": "\"%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb.exe\" install -r PRISM-Game.apk",
+    "devices": "\"%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb.exe\" devices",
     "apk": "npm run build && npm run sync && npm run apk:gradle && npm run apk:copy",
     "deploy": "npm run apk && npm run apk:install"
   },
