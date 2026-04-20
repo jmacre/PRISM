@@ -265,15 +265,32 @@ export const AUDIO = (() => {
       }
     },
 
-    // Completely rebuilds the audio context and starts from beat 0. Used
-    // when the player starts a new run — guarantees a clean slate.
+    // Start fresh from beat 0. Used when the player starts a new run —
+    // guarantees a clean slate. Only rebuilds the AudioContext if it's
+    // missing or closed; otherwise just reuses the existing one. Avoids
+    // ~100ms of unnecessary setup on every new-game button press.
     forceStart() {
       if (_musicMuted) return;
       _suspendId++;
       running = false;
       clearTimeout(schedTimer);
-      _buildCtx();
+      if (!ctx || ctx.state === "closed") {
+        _buildCtx();
+      }
       if (ctx) {
+        // Resume if suspended so the context is audible.
+        try {
+          if (ctx.state === "suspended") ctx.resume();
+        } catch {}
+        // Snap master gain back up (it may have been at 0 from a pause).
+        try {
+          if (master) {
+            const t = ctx.currentTime;
+            master.gain.cancelScheduledValues(t);
+            master.gain.setValueAtTime(master.gain.value, t);
+            master.gain.linearRampToValueAtTime(0.32, t + 0.15);
+          }
+        } catch {}
         running = true;
         beat = 0;
         nextNote = ctx.currentTime + 0.1;
