@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "sync": "cap sync android",
     "apk:gradle": "cd android && .\\gradlew.bat assembleDebug",
-    "apk:copy": "node -e \"require('fs').copyFileSync('android/app/build/outputs/apk/debug/app-debug.apk', 'PRISM-Game.apk')\"",
+    "apk:copy": "node -e \"const fs=require('fs'),path=require('path');const src=path.resolve('android/app/build/outputs/apk/debug/app-debug.apk');const dst=path.resolve('PRISM-Game.apk');fs.copyFileSync(src,dst);console.log('APK copied to:',dst)\"",
     "apk": "npm run build && npm run sync && npm run apk:gradle && npm run apk:copy"
   },
   "dependencies": {
