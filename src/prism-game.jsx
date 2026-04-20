@@ -936,7 +936,10 @@ export default function PrismGame() {
     setPaused(false);
     AUDIO.resumeFromPause();
     musicReady.current = true;
-    setTimeout(() => AUDIO.sfx("pause"), 150);
+    // Delay the unpause SFX until after the gain ramp (~200ms) has settled
+    // — firing too early on Android can produce a loud click because the
+    // AudioContext is still stabilizing after resume.
+    setTimeout(() => AUDIO.sfx("pause"), 280);
   }, []);
 
   // Pause-menu callbacks. PauseOverlay is memoized, so we need stable

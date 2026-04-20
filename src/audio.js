@@ -266,25 +266,38 @@ export const AUDIO = (() => {
     },
 
     // Resume from pause — keeps beat position, unmutes and restarts the
-    // scheduler. Longer ramps than startMusic because Android audio drivers
-    // dislike short ramps right after an AudioContext resume.
+    // scheduler. We wait for ctx.resume()'s Promise to settle before
+    // touching the gain, otherwise Android's AudioContext sometimes
+    // produces a loud click from scheduling values against an unstable
+    // context. We also ramp UP from whatever gain the fade left us at
+    // (rather than snapping to 0.0001 first) to avoid any discontinuity.
     resumeFromPause() {
       if (!ctx || _musicMuted) return;
-      try {
-        if (ctx.state === "suspended") ctx.resume();
-      } catch {}
-      try {
-        if (master) {
-          const t = ctx.currentTime;
-          master.gain.cancelScheduledValues(t);
-          master.gain.setValueAtTime(0.0001, t);
-          master.gain.linearRampToValueAtTime(0.32, t + 0.12);
+      const finish = () => {
+        try {
+          if (master && ctx) {
+            const t = ctx.currentTime;
+            master.gain.cancelScheduledValues(t);
+            master.gain.setValueAtTime(master.gain.value, t);
+            master.gain.linearRampToValueAtTime(0.32, t + 0.2);
+          }
+        } catch {}
+        if (!running && ctx) {
+          running = true;
+          nextNote = ctx.currentTime + 0.2;
+          schedule();
         }
-      } catch {}
-      if (!running) {
-        running = true;
-        nextNote = ctx.currentTime + 0.1;
-        schedule();
+      };
+      try {
+        if (ctx.state === "suspended") {
+          const p = ctx.resume();
+          if (p && typeof p.then === "function") p.then(finish, finish);
+          else finish();
+        } else {
+          finish();
+        }
+      } catch {
+        finish();
       }
     },
 
