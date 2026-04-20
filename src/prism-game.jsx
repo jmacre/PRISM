@@ -924,11 +924,11 @@ export default function PrismGame() {
     AUDIO.sfx("pause");
     pausedRef.current = true;
     setPaused(true);
-    // Defer audio suspend briefly so the pause SFX gets a chance to play.
-    // Use setTimeout rather than requestAnimationFrame — RAF is paused when
-    // the app goes to the background (Android "recent apps" button), which
-    // would leave the audio engine running forever.
-    setTimeout(() => AUDIO.suspendAll(), 80);
+    // In-game pause: fade gain but keep the AudioContext alive. Cycling
+    // ctx.suspend()/resume() for every pause causes a loud click on
+    // Android because scheduled oscillators in the lookahead buffer fire
+    // en masse on resume.
+    setTimeout(() => AUDIO.pauseMusic(), 80);
   }, []);
 
   const resumeGame = useCallback(() => {
@@ -990,36 +990,66 @@ export default function PrismGame() {
   //   2. Tutorial open, step > 0   → previous step
   //   3. Tutorial open, step === 0 → exit to title
   //   4. Playing (not paused/over) → pause
-  //   5. Anything else             → do nothing (swallow the back press)
+  //   5. Anything else             → swallow the back press
+  //
+  // We hold the current navigation state in a ref so the popstate listener
+  // can read the latest values without having to re-register every time
+  // something changes (re-registering was causing the push/pop stack to
+  // desync, making back presses seem to do nothing).
+  const navRef = useRef({
+    screen,
+    showAbout,
+    showTut,
+    tutStep,
+    pauseGame,
+    setShowAbout,
+    setShowTut,
+    setTutStep,
+    setScreen,
+  });
   useEffect(() => {
-    // Push a dummy history state so back button triggers popstate instead
-    // of closing the app.
+    navRef.current = {
+      screen,
+      showAbout,
+      showTut,
+      tutStep,
+      pauseGame,
+      setShowAbout,
+      setShowTut,
+      setTutStep,
+      setScreen,
+    };
+  });
+
+  useEffect(() => {
+    // Push a single dummy history state on mount so back button triggers
+    // popstate instead of closing the app.
     window.history.pushState({ prism: true }, "", " ");
-    const onBack = e => {
-      e.preventDefault();
-      // Re-push state so back button keeps working on subsequent presses.
+    const onBack = () => {
+      // Re-push state so future back presses still fire popstate.
       window.history.pushState({ prism: true }, "", " ");
 
-      if (showAbout) {
-        setShowAbout(false);
+      const nav = navRef.current;
+      if (nav.showAbout) {
+        nav.setShowAbout(false);
         return;
       }
-      if (showTut) {
-        if (tutStep > 0) {
-          setTutStep(tutStep - 1);
+      if (nav.showTut) {
+        if (nav.tutStep > 0) {
+          nav.setTutStep(nav.tutStep - 1);
         } else {
-          setShowTut(false);
-          setScreen("menu");
+          nav.setShowTut(false);
+          nav.setScreen("menu");
         }
         return;
       }
-      if (screen === "play" && !gameOvRef.current && !pausedRef.current) {
-        pauseGame();
+      if (nav.screen === "play" && !gameOvRef.current && !pausedRef.current) {
+        nav.pauseGame();
       }
     };
     window.addEventListener("popstate", onBack);
     return () => window.removeEventListener("popstate", onBack);
-  }, [screen, pauseGame, showAbout, showTut, tutStep]);
+  }, []);
 
   const toggleMusic = useCallback(() => {
     AUDIO.init();

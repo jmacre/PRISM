@@ -9,7 +9,10 @@ export const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
-.pa{min-height:100vh;background:radial-gradient(ellipse 100% 55% at 50% -5%,#200840 0%,#07050e 65%),radial-gradient(ellipse 60% 40% at 20% 40%,rgba(200,68,255,.12),transparent 70%),radial-gradient(ellipse 50% 40% at 80% 60%,rgba(34,153,255,.08),transparent 70%);display:flex;flex-direction:column;align-items:center;padding:14px 10px 28px;gap:8px;font-family:'Inter',sans-serif;color:#b09acc;user-select:none;-webkit-user-select:none;overflow-x:hidden;position:relative;}
+.pa{min-height:100vh;background:radial-gradient(ellipse 100% 55% at 50% -5%,#200840 0%,#07050e 65%),radial-gradient(ellipse 60% 40% at 20% 40%,rgba(200,68,255,.12),transparent 70%),radial-gradient(ellipse 50% 40% at 80% 60%,rgba(34,153,255,.08),transparent 70%);display:flex;flex-direction:column;align-items:center;padding:22px 10px 28px;gap:14px;font-family:'Inter',sans-serif;color:#b09acc;user-select:none;-webkit-user-select:none;overflow-x:hidden;position:relative;}
+/* Tone down the PRISM title in the HUD — it's a gameplay header, not the
+   splash logo, so use smaller type + less letter-spacing. */
+.pa .pt{font-size:clamp(1.4rem,5.5vw,1.9rem);letter-spacing:.32em;padding-left:.32em;margin-bottom:4px;}
 
 /* FEVER vignette */
 .pa.fever::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(255,80,0,.3) 100%);pointer-events:none;z-index:500;animation:fvign .5s ease-in-out infinite alternate;}

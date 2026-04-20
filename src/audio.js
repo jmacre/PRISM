@@ -175,6 +175,27 @@ export const AUDIO = (() => {
     init,
     resume,
 
+    // In-game pause. Stops the scheduler and fades out, but keeps the
+    // AudioContext alive. Cycling the context via ctx.suspend()/resume()
+    // causes a click on Android because scheduled-but-not-yet-played
+    // oscillators in the lookahead buffer fire all at once on resume.
+    pauseMusic() {
+      running = false;
+      clearTimeout(schedTimer);
+      try {
+        if (ctx && master) {
+          const t = ctx.currentTime;
+          master.gain.cancelScheduledValues(t);
+          master.gain.setValueAtTime(master.gain.value, t);
+          master.gain.linearRampToValueAtTime(0.0001, t + 0.08);
+        }
+      } catch {}
+    },
+
+    // Full suspend — used when the app actually goes to the background
+    // (tab hidden / recent-apps button). Fades, then calls ctx.suspend()
+    // so Android stops processing audio entirely. Produces a small click
+    // on next resume, but that's rare compared to in-game pause cycles.
     suspendAll() {
       running = false;
       clearTimeout(schedTimer);
@@ -183,13 +204,8 @@ export const AUDIO = (() => {
           const t = ctx.currentTime;
           master.gain.cancelScheduledValues(t);
           master.gain.setValueAtTime(master.gain.value, t);
-          // Short fade-out avoids a click when the tab goes to background.
           master.gain.linearRampToValueAtTime(0.0001, t + 0.08);
         }
-        // Actually halt the AudioContext so Android stops processing audio
-        // in the background — without this, hitting "recent apps" leaves
-        // music playing at near-zero gain, which some devices still emit.
-        // Delay slightly so the fade-out can run first.
         setTimeout(() => {
           try {
             if (ctx && ctx.state === "running") ctx.suspend();
