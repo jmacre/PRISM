@@ -25,8 +25,16 @@ export const AUDIO = (() => {
   let _bpm = BASE_BPM;
   let _s8 = 60 / _bpm / 2;
 
-  const AHEAD = 0.35;
-  const LOOK = 45;
+  // Lookahead window for the scheduler + how often we wake up. Tuned wider
+  // (500 ms / 30 ms) than typical so occasional main-thread stalls during
+  // React cascades don't cause audio underruns.
+  const AHEAD = 0.5;
+  const LOOK = 30;
+
+  // Global polyphony cap — on Android Chromium the audio renderer chokes
+  // above ~14 simultaneous oscillators with gain automation, producing
+  // the quiet crackle. Keep well below that ceiling.
+  const MAX_POLY = 12;
 
   // Bass line (32 sixteenth-notes) and 8 looping melodies. `0` means rest.
   const BASS = [
@@ -53,33 +61,50 @@ export const AUDIO = (() => {
       }
       ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-      // Longer attack/release smooths out the dynamics so pauses and bursts
-      // don't produce audible crackle on Android's audio output.
+      // ── Signal chain: sources → master → compressor → lowpass → destination
+      //
+      //   master      gain trim — what suspendAll fades
+      //   compressor  tames peaks from overlapping SFX (8 ms attack,
+      //               350 ms release — slower release than before to
+      //               stop it from pumping during cascades)
+      //   lowpass     gentle roll-off above ~3.2 kHz to tame the harsh
+      //               phone-speaker sizzle that made some SFX painful
+
       const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -24;
-      comp.ratio.value = 12;
+      comp.threshold.value = -22;
+      comp.ratio.value = 8;
       comp.attack.value = 0.008;
-      comp.release.value = 0.25;
+      comp.release.value = 0.35;
+
+      const tone = ctx.createBiquadFilter();
+      tone.type = "lowpass";
+      tone.frequency.value = 3200;
+      tone.Q.value = 0.6;
 
       master = ctx.createGain();
       master.gain.value = 0.32;
-      master.connect(comp);
-      comp.connect(ctx.destination);
 
-      // 2.4-second noise tail for a cheap convolution reverb.
-      const len = Math.floor(ctx.sampleRate * 2.4);
+      master.connect(comp);
+      comp.connect(tone);
+      tone.connect(ctx.destination);
+
+      // Tiny reverb — 0.6 s instead of 2.4 s. The convolver was running
+      // continuously during music playback and was the biggest baseline
+      // CPU cost on the audio thread (4× smaller buffer = ~4× cheaper
+      // per audio block). Shorter tail also means less ringing on phones.
+      const len = Math.floor(ctx.sampleRate * 0.6);
       const buf = ctx.createBuffer(2, len, ctx.sampleRate);
       for (let c = 0; c < 2; c++) {
         const d = buf.getChannelData(c);
         for (let i = 0; i < len; i++) {
-          d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
+          d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
         }
       }
       verb = ctx.createConvolver();
       verb.buffer = buf;
 
       const vg = ctx.createGain();
-      vg.gain.value = 0.2;
+      vg.gain.value = 0.15;
       verb.connect(vg);
       vg.connect(master);
 
@@ -96,7 +121,7 @@ export const AUDIO = (() => {
   const resume = () => ctx?.state === "suspended" && ctx.resume();
 
   function playNote(freq, t, dur, type, vol, rv = 0) {
-    if (!freq || !ctx || _activeOsc > 20) return;
+    if (!freq || !ctx || _activeOsc > MAX_POLY) return;
     _activeOsc++;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
@@ -113,16 +138,18 @@ export const AUDIO = (() => {
       o.connect(rg);
       rg.connect(verb);
     }
+    // 15 ms attack / 20 ms release — longer than the old 8 ms cuts down
+    // on zipper noise when many notes overlap.
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.008);
-    g.gain.setValueAtTime(vol, t + dur * 0.6);
+    g.gain.linearRampToValueAtTime(vol, t + 0.015);
+    g.gain.setValueAtTime(vol, t + Math.max(0.015, dur * 0.6));
     g.gain.linearRampToValueAtTime(0.0001, t + dur);
     o.start(t);
     o.stop(t + dur + 0.05);
   }
 
   function kick(t) {
-    if (!ctx || _activeOsc > 20) return;
+    if (!ctx || _activeOsc > MAX_POLY) return;
     _activeOsc++;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
@@ -135,7 +162,7 @@ export const AUDIO = (() => {
     o.connect(g);
     g.connect(master);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.35, t + 0.005);
+    g.gain.linearRampToValueAtTime(0.35, t + 0.01);
     g.gain.linearRampToValueAtTime(0.0001, t + 0.3);
     o.start(t);
     o.stop(t + 0.35);
@@ -145,6 +172,20 @@ export const AUDIO = (() => {
     if (!running || !ctx) return;
     // Phrase order across 8 melody blocks (0..7).
     const ORDER = [0, 1, 2, 3, 4, 5, 6, 7, 0, 2, 1, 3, 5, 4, 6, 7];
+
+    // If the main thread stalled long enough that we'd be firing notes
+    // meaningfully in the past, skip ahead rather than burst-fire a
+    // catchup pile. Piled-up notes are the biggest single source of the
+    // "crackle during cascades" symptom — many oscillators starting in
+    // the same audio block overflow the audio thread's capacity.
+    const now = ctx.currentTime;
+    if (nextNote < now - _s8) {
+      const behind = now - nextNote;
+      const skip = Math.ceil(behind / _s8);
+      nextNote += skip * _s8;
+      beat += skip;
+    }
+
     while (nextNote < ctx.currentTime + AHEAD) {
       const t = nextNote;
       const s8 = beat % 256;
@@ -356,10 +397,13 @@ export const AUDIO = (() => {
     sfx(type, ...args) {
       if (_sfxMuted || !ctx) return;
       // Always let game-over through; otherwise drop when we're already loud.
-      if (_activeOsc > 20 && type !== "over") return;
+      if (_activeOsc > MAX_POLY && type !== "over") return;
 
+      // Debounce: skip a second fire of the same SFX within 80 ms.
+      // Overlapping identical SFX are almost never pleasant and easily
+      // push us past the polyphony cap.
       const now2 = ctx.currentTime;
-      if (_lastSfx === type && now2 - _lastSfxTime < 0.06) return;
+      if (_lastSfx === type && now2 - _lastSfxTime < 0.08) return;
       _lastSfx = type;
       _lastSfxTime = now2;
 
@@ -372,7 +416,7 @@ export const AUDIO = (() => {
       // ramps are also a touch longer (18ms/20ms) — too-short envelopes
       // sound like clicks on mobile audio drivers even at low volume.
       function sn(f, dur, vol, wt, t0 = t, fEnd = null) {
-        if (_activeOsc > 24 && type !== "over") return;
+        if (_activeOsc > MAX_POLY + 2 && type !== "over") return;
         const o = ctx.createOscillator();
         const g = ctx.createGain();
         o.type = wt;
@@ -406,10 +450,13 @@ export const AUDIO = (() => {
         sn(base * 1.5, 0.22, 0.07, "sine", t + 0.12);
       }
       if (type === "zap") {
-        sn(1200, 0.14, 0.2, "sawtooth", t, 400);
-        sn(800, 0.1, 0.15, "triangle", t + 0.02, 200);
-        sn(600, 0.18, 0.18, "sine", t + 0.04, 150);
-        sn(1600, 0.06, 0.08, "sawtooth", t + 0.01, 600);
+        // Bright electric zap. Swapped the 1600 Hz sawtooth (the painful
+        // sizzle) for a softer triangle at 1200, and kept everything
+        // below 1200 Hz for the rest.
+        sn(1000, 0.14, 0.18, "triangle", t, 400);
+        sn(800, 0.1, 0.13, "triangle", t + 0.02, 200);
+        sn(600, 0.18, 0.16, "sine", t + 0.04, 150);
+        sn(1200, 0.06, 0.08, "triangle", t + 0.01, 500);
         sn(300, 0.12, 0.1, "triangle", t + 0.06, 100);
       }
       if (type === "bomb") {
@@ -422,12 +469,16 @@ export const AUDIO = (() => {
         }
       }
       if (type === "inferno") {
-        for (let i = 0; i < 14; i++) {
-          const f = 80 + i * 35;
-          sn(f, 1.1, 0.2, "sawtooth", t + i * 0.04, f * 2.2);
+        // Was 14 sawtooth + 7 sine + 2 bass = 23 oscillators. Cut to
+        // 6 + 4 + 2 = 12 and swapped the sawtooths for triangles so the
+        // Android audio thread doesn't have to render that many harsh
+        // waveforms simultaneously.
+        for (let i = 0; i < 6; i++) {
+          const f = 100 + i * 80;
+          sn(f, 1.1, 0.22, "triangle", t + i * 0.07, f * 1.8);
         }
-        [220, 294, 392, 523, 659, 784, 988].forEach((f, i) => {
-          sn(f, 0.9, 0.18, "sine", t + 0.15 + i * 0.05, f * 0.4);
+        [220, 330, 440, 587].forEach((f, i) => {
+          sn(f, 0.9, 0.18, "sine", t + 0.2 + i * 0.08, f * 0.5);
         });
         sn(55, 1.3, 0.55, "sine", t, 20);
         sn(110, 1.0, 0.3, "triangle", t + 0.05, 35);
@@ -443,14 +494,15 @@ export const AUDIO = (() => {
         sn(f, 0.2, 0.14, "triangle", t, f * 2.3);
       }
       if (type === "fever") {
+        // Dropped the 2093 Hz cap tone (way too shrill on phones).
         [523, 659, 784, 1047, 1319].forEach((f, i) => {
-          sn(f, 0.4, 0.2, "sine", t + i * 0.05);
+          sn(f, 0.4, 0.18, "sine", t + i * 0.05);
         });
-        sn(2093, 0.3, 0.1, "sine", t + 0.28);
       }
       if (type === "milestone") {
-        [784, 1047, 1319, 1568].forEach((f, i) => {
-          sn(f, 0.3, 0.18, "sine", t + i * 0.08);
+        // Was up to 1568. Trimmed so nothing pokes over ~1300.
+        [659, 880, 1047, 1319].forEach((f, i) => {
+          sn(f, 0.3, 0.16, "sine", t + i * 0.08);
         });
       }
       if (type === "bonus") {
@@ -467,30 +519,33 @@ export const AUDIO = (() => {
         sn(440, 0.12, 0.14, "triangle");
       }
       if (type === "wildcard") {
+        // Rising shimmer — trimmed to stay under ~1300 Hz.
         sn(130, 0.5, 0.3, "sine", t, 65);
-        sn(523, 0.35, 0.25, "sine", t + 0.03);
-        sn(784, 0.3, 0.22, "sine", t + 0.08);
-        sn(1047, 0.25, 0.18, "sine", t + 0.13);
-        sn(1568, 0.2, 0.15, "sine", t + 0.18);
-        sn(2093, 0.15, 0.1, "sine", t + 0.23);
+        sn(440, 0.35, 0.22, "sine", t + 0.03);
+        sn(659, 0.3, 0.2, "sine", t + 0.08);
+        sn(880, 0.25, 0.16, "sine", t + 0.13);
+        sn(1175, 0.2, 0.12, "sine", t + 0.18);
       }
       if (type === "unchain") {
-        sn(1200, 0.15, 0.12, "sine");
-        sn(800, 0.1, 0.08, "triangle", t + 0.05);
-        sn(1600, 0.08, 0.06, "sine", t + 0.1);
+        // Dropped the 1600 Hz chirp (too thin on phone speakers).
+        sn(880, 0.15, 0.12, "sine");
+        sn(660, 0.1, 0.08, "triangle", t + 0.05);
       }
       if (type === "prismSpawn") {
-        sn(1568, 0.3, 0.12, "sine");
-        sn(2093, 0.25, 0.1, "sine", t + 0.08);
-        sn(2637, 0.2, 0.08, "sine", t + 0.16);
+        // Was a 1568 / 2093 / 2637 ladder — nearly the entire thing was
+        // in the painful 2-3 kHz band. Moved down an octave.
+        sn(784, 0.3, 0.14, "sine", t);
+        sn(1047, 0.25, 0.12, "sine", t + 0.08);
+        sn(1319, 0.2, 0.1, "sine", t + 0.16);
       }
       if (type === "doublePrism") {
-        // Sharp impact burst.
-        sn(2000, 0.1, 0.3, "sawtooth", t, 100);
-        sn(1500, 0.08, 0.2, "square", t + 0.01, 80);
+        // Softer impact — triangles instead of sawtooth/square, and
+        // ceiling lowered from 2000 to 1200.
+        sn(1200, 0.1, 0.24, "triangle", t, 150);
+        sn(900, 0.08, 0.18, "triangle", t + 0.01, 100);
         // Impact thump.
         sn(150, 0.5, 0.35, "sine", t + 0.02, 40);
-        // Dramatic rising chord — sustained.
+        // Rising chord — sustained.
         sn(523, 0.7, 0.2, "sine", t + 0.1);
         sn(659, 0.65, 0.18, "sine", t + 0.15);
         sn(784, 0.6, 0.16, "sine", t + 0.2);
@@ -506,28 +561,31 @@ export const AUDIO = (() => {
         sn(262, 0.3, 0.1, "triangle", t);
       }
       if (type === "mult5") {
-        [392, 523, 659, 784, 988, 1175, 1568].forEach((f, i) => {
-          sn(f, 0.32, 0.18, "sine", t + i * 0.055, f * 1.8);
+        // Dropped the 1568/2093 pair (too shrill) and reduced the ladder
+        // length so we're not firing 9 overlapping oscillators.
+        [392, 523, 659, 784, 988].forEach((f, i) => {
+          sn(f, 0.32, 0.18, "sine", t + i * 0.055, f * 1.6);
         });
-        [98, 130].forEach(f => sn(f, 0.5, 0.22, "sine", t, f * 0.5));
-        sn(2093, 0.25, 0.12, "triangle", t + 0.35);
+        sn(98, 0.5, 0.22, "sine", t, 49);
+        sn(130, 0.5, 0.22, "sine", t, 65);
       }
       if (type === "mult10") {
-        for (let i = 0; i < 12; i++) {
-          const f = 100 + i * 160;
-          sn(f, 0.08, 0.15, "sine", t + i * 0.022, f * 2);
+        // Was ~22 oscillators and went up to 3136 Hz — by far the worst
+        // SFX for both crackling and high-pitch pain. Rebuilt with ~11
+        // oscillators max and a 1300 Hz ceiling.
+        for (let i = 0; i < 6; i++) {
+          const f = 100 + i * 180;
+          sn(f, 0.08, 0.15, "sine", t + i * 0.04, f * 1.8);
         }
-        [261, 392, 523, 659, 784, 1047].forEach((f, i) => {
-          sn(f, 0.9, 0.22, "sine", t + 0.3 + i * 0.015, f * 1.3);
-        });
-        [2093, 2637, 3136].forEach((f, i) => {
-          sn(f, 0.6, 0.14, "triangle", t + 0.6 + i * 0.08);
+        [261, 392, 523, 784, 1047].forEach((f, i) => {
+          sn(f, 0.9, 0.2, "sine", t + 0.3 + i * 0.02, f * 1.3);
         });
         sn(55, 1.2, 0.4, "sine", t + 0.25, 30);
       }
       if (type === "multtick") {
-        const f = args[0] === 10 ? 2500 : args[0] === 5 ? 1800 : 1400;
-        sn(f, 0.05, 0.08, "sine", t, f * 1.4);
+        // The mult=10 variant sat at 2500 Hz — dropped to 1400.
+        const f = args[0] >= 5 ? 1400 : 1100;
+        sn(f, 0.05, 0.08, "sine", t, f * 1.3);
       }
       if (type === "over") {
         sn(110, 1.4, 0.32, "sine", t, 55);
