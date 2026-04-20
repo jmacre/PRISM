@@ -365,7 +365,12 @@ export const AUDIO = (() => {
 
       const t = ctx.currentTime;
 
-      // Local helper: one envelope-shaped oscillator note.
+      // Local helper: one envelope-shaped oscillator note. Routed through
+      // `master` (and thus the compressor) rather than directly to
+      // destination — that's what smooths out the small clicks you'd
+      // otherwise hear when many SFX overlap early in a run. Attack/release
+      // ramps are also a touch longer (18ms/20ms) — too-short envelopes
+      // sound like clicks on mobile audio drivers even at low volume.
       function sn(f, dur, vol, wt, t0 = t, fEnd = null) {
         if (_activeOsc > 24 && type !== "over") return;
         const o = ctx.createOscillator();
@@ -374,9 +379,10 @@ export const AUDIO = (() => {
         o.frequency.value = f;
         if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur * 0.72);
         o.connect(g);
-        g.connect(ctx.destination);
+        g.connect(master || ctx.destination);
         g.gain.setValueAtTime(0.0001, t0);
-        g.gain.linearRampToValueAtTime(vol, t0 + 0.009);
+        g.gain.linearRampToValueAtTime(vol, t0 + 0.018);
+        g.gain.setValueAtTime(vol, t0 + Math.max(0.018, dur - 0.02));
         g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
         _activeOsc++;
         o.onended = () => {

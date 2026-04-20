@@ -119,6 +119,22 @@ export const CSS = `
    vertical midpoint. */
 .menu{position:fixed;inset:0;background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);display:flex;flex-direction:column;align-items:center;gap:40px;z-index:700;padding:25vh 20px 32px;}
 .menu .pt{font-size:clamp(3rem,14vw,4.8rem);margin-bottom:15vh;}
+
+/* While the renderer warms up, the menu sits on a pure-black bg and its
+   children are hidden. Once ready, each child falls in from the top with
+   a staggered delay. */
+.menu-loading{background:#000;}
+.menu-loading .menu-stagger{opacity:0;}
+.menu-ready .menu-stagger{animation:menuFallIn .55s cubic-bezier(.22,1.06,.36,1) both;}
+.menu-ready .menu-stagger:nth-of-type(1){animation-delay:0s;}
+.menu-ready .menu-stagger:nth-of-type(2){animation-delay:.12s;}
+.menu-ready .menu-stagger:nth-of-type(3){animation-delay:.24s;}
+.menu-ready .menu-stagger:nth-of-type(4){animation-delay:.36s;}
+@keyframes menuFallIn{
+  from{opacity:0;transform:translateY(-32px);}
+  60% {opacity:1;transform:translateY(6px);}
+  to  {opacity:1;transform:translateY(0);}
+}
 .menu .ps{font-size:.7rem;margin-top:8px;}
 .menu-best{font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.14em;color:#8866cc;margin-top:16px;text-align:center;}
 .menu-best b{color:#ffcc44;text-shadow:0 0 12px rgba(255,200,68,.6);font-size:1rem;display:block;margin-top:10px;}

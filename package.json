@@ -13,6 +13,9 @@
     "apk:copy-desktop": "node -e \"const fs=require('fs'),os=require('os'),path=require('path');const src=path.resolve('android/app/build/outputs/apk/debug/app-debug.apk');const dst=path.join(os.homedir(),'Desktop','PRISM-Game.apk');fs.mkdirSync(path.dirname(dst),{recursive:true});fs.copyFileSync(src,dst);console.log('APK copied to:',dst)\"",
     "apk:install": "\"%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb.exe\" install -r PRISM-Game.apk",
     "devices": "\"%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb.exe\" devices",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
     "apk": "npm run build && npm run sync && npm run apk:gradle && npm run apk:copy",
     "deploy": "npm run apk && npm run apk:install"
   },
@@ -26,9 +29,12 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@vitest/ui": "^4.1.4",
+    "jsdom": "^29.0.2",
     "prettier": "^3.8.3",
     "sharp": "^0.34.5",
     "typescript": "^6.0.2",
-    "vite": "^5.4.0"
+    "vite": "^5.4.0",
+    "vitest": "^4.1.4"
   }
 }
