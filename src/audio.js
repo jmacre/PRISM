@@ -7,6 +7,7 @@
 export const AUDIO = (() => {
   let ctx = null;
   let master = null;
+  let sfxBus = null;
   let verb = null;
 
   let running = false;
@@ -76,13 +77,25 @@ export const AUDIO = (() => {
       comp.attack.value = 0.008;
       comp.release.value = 0.35;
 
+      // Aggressive master lowpass — anything above ~1.5 kHz is aggressively
+      // rolled off. Phone speakers exaggerate the 2-5 kHz band, and every
+      // "painful high-pitched" SFX complaint traces back to content up
+      // there. With this filter the harshest SFX can't get harsh.
       const tone = ctx.createBiquadFilter();
       tone.type = "lowpass";
-      tone.frequency.value = 3200;
-      tone.Q.value = 0.6;
+      tone.frequency.value = 1500;
+      tone.Q.value = 0.9;
 
       master = ctx.createGain();
       master.gain.value = 0.32;
+
+      // Dedicated SFX bus attenuated to 45% of master. SFX were too loud
+      // relative to music, which made the high-pitched ones feel painful.
+      // Individual SFX volumes stay as tuned — the bus just pulls the
+      // whole category down.
+      sfxBus = ctx.createGain();
+      sfxBus.gain.value = 0.45;
+      sfxBus.connect(master);
 
       master.connect(comp);
       comp.connect(tone);
@@ -301,6 +314,7 @@ export const AUDIO = (() => {
         } catch {}
         ctx = null;
         master = null;
+        sfxBus = null;
         verb = null;
         _activeOsc = 0;
       }
@@ -423,7 +437,9 @@ export const AUDIO = (() => {
         o.frequency.value = f;
         if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur * 0.72);
         o.connect(g);
-        g.connect(master || ctx.destination);
+        // SFX route through the dedicated SFX bus (which is attenuated
+        // 45% relative to master) so they sit below the music.
+        g.connect(sfxBus || master || ctx.destination);
         g.gain.setValueAtTime(0.0001, t0);
         g.gain.linearRampToValueAtTime(vol, t0 + 0.018);
         g.gain.setValueAtTime(vol, t0 + Math.max(0.018, dur - 0.02));
