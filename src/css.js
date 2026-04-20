@@ -111,9 +111,9 @@ export const CSS = `
 .ov-score{font-family:'Orbitron',sans-serif;font-size:.95rem;color:#cc88ff;letter-spacing:.1em;padding-left:.1em;margin-top:4px;}
 
 /* Main menu */
-/* Title screen — anchored so the PRISM logo sits ~25% down the screen and
-   PLAY lands near the vertical centre, rather than everything jammed up top. */
-.menu{position:fixed;inset:0;background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);display:flex;flex-direction:column;align-items:center;gap:40px;z-index:700;padding:25vh 20px 32px;}
+/* Title screen — PRISM logo sits at ~38% down, PLAY falls just past the
+   vertical midpoint with BEST SCORE stacked right below it. */
+.menu{position:fixed;inset:0;background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);display:flex;flex-direction:column;align-items:center;gap:40px;z-index:700;padding:38vh 20px 32px;}
 .menu .pt{font-size:clamp(3rem,14vw,4.8rem);}
 .menu .ps{font-size:.7rem;margin-top:8px;}
 .menu-best{font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.14em;color:#8866cc;margin-top:16px;text-align:center;}
