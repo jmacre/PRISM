@@ -1363,50 +1363,53 @@ export default function PrismGame() {
           // Special overlays
           ctx.globalAlpha = alpha;
           if (g.type === "zap") {
-            // Horizontal + vertical bars: cyan gradient with white center + cyan glow
+            // Cyan-edged white bars. Simulated glow via two wide
+            // transparent underlayers instead of shadowBlur (which was
+            // the main reason zap gems caused per-frame lag on Android —
+            // shadowBlur forces a per-pixel gaussian convolution every
+            // frame on every zap tile).
             ctx.save();
-            ctx.shadowColor = "rgba(0,220,255,0.9)";
-            ctx.shadowBlur = 8;
-            for (const vertical of [false, true]) {
-              const g1 = vertical
-                ? ctx.createLinearGradient(0, -PX * 0.4, 0, PX * 0.4)
-                : ctx.createLinearGradient(-PX * 0.4, 0, PX * 0.4, 0);
-              g1.addColorStop(0, "rgba(0,220,255,0.6)");
-              g1.addColorStop(0.18, "#fff");
-              g1.addColorStop(0.82, "#fff");
-              g1.addColorStop(1, "rgba(0,220,255,0.6)");
-              ctx.fillStyle = g1;
-              if (vertical) ctx.fillRect(-1.5, -PX * 0.4, 3, PX * 0.8);
-              else ctx.fillRect(-PX * 0.4, -1.5, PX * 0.8, 3);
-            }
+            ctx.fillStyle = "rgba(0,220,255,0.35)";
+            ctx.fillRect(-3, -PX * 0.4, 6, PX * 0.8);
+            ctx.fillRect(-PX * 0.4, -3, PX * 0.8, 6);
+            ctx.fillStyle = "rgba(0,220,255,0.55)";
+            ctx.fillRect(-2, -PX * 0.4, 4, PX * 0.8);
+            ctx.fillRect(-PX * 0.4, -2, PX * 0.8, 4);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(-1, -PX * 0.4, 2, PX * 0.8);
+            ctx.fillRect(-PX * 0.4, -1, PX * 0.8, 2);
             ctx.restore();
-            // Sparks at the outer ends of horizontal bar
+            // Sparks at the outer ends — solid circles, no gradient per frame.
             const sparkA = 0.75 + 0.25 * Math.sin(t * 6);
-            for (const x of [-PX * 0.42, PX * 0.42]) {
-              ctx.save();
-              ctx.globalAlpha = sparkA;
-              const sg = ctx.createRadialGradient(x, 0, 0, x, 0, 3.5);
-              sg.addColorStop(0, "#fff");
-              sg.addColorStop(0.5, "rgba(0,220,255,0.8)");
-              sg.addColorStop(1, "rgba(0,220,255,0)");
-              ctx.fillStyle = sg;
-              ctx.beginPath();
-              ctx.arc(x, 0, 3.5, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.restore();
-            }
+            ctx.save();
+            ctx.globalAlpha = alpha * sparkA;
+            ctx.fillStyle = "rgba(0,220,255,0.85)";
+            ctx.beginPath();
+            ctx.arc(-PX * 0.42, 0, 3.5, 0, Math.PI * 2);
+            ctx.arc(PX * 0.42, 0, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(-PX * 0.42, 0, 1.5, 0, Math.PI * 2);
+            ctx.arc(PX * 0.42, 0, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
           }
           if (g.type === "bomb") {
             const bp = 1 + 0.08 * Math.sin(t * 4.8);
             const ba = 0.82 + 0.15 * Math.sin(t * 4.8);
+            // Simulated glow with a wider transparent stroke underneath,
+            // instead of shadowBlur.
             ctx.save();
-            ctx.globalAlpha = ba;
-            ctx.shadowColor = "rgba(255,255,255,0.75)";
-            ctx.shadowBlur = 10;
-            ctx.strokeStyle = "rgba(255,255,255,0.95)";
-            ctx.lineWidth = 2.5;
+            ctx.globalAlpha = alpha * ba * 0.5;
+            ctx.strokeStyle = "rgba(255,255,255,0.7)";
+            ctx.lineWidth = 5;
             ctx.beginPath();
             ctx.arc(0, 0, PX * 0.34 * bp, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = alpha * ba;
+            ctx.strokeStyle = "rgba(255,255,255,0.95)";
+            ctx.lineWidth = 2.5;
             ctx.stroke();
             ctx.restore();
           }
