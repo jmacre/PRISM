@@ -130,6 +130,15 @@ export const CSS = `
 }
 .menu .pt{font-size:clamp(3rem,14vw,4.8rem);margin-bottom:15vh;}
 
+/* Full-screen black fade used to cover menu → game / tutorial → game
+   transitions. Opacity is driven by a React state toggle. */
+.page-fade{
+  position:fixed;inset:0;background:#000;z-index:9999;pointer-events:none;
+  opacity:0;
+  transition:opacity .28s ease-out;
+}
+.page-fade.on{opacity:1;pointer-events:auto;}
+
 /* Black overlay that covers EVERYTHING (gradient + children) on mount,
    then fades off. Needs to sit above the children (high z-index) so the
    user doesn't see them pop in before the fade completes. */

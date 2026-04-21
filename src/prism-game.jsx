@@ -71,6 +71,8 @@ export default function PrismGame() {
   const [confirmAction, setConfirmAction] = useState(null);
   const [showAbout, setShowAbout] = useState(false);
   const [musicMuted, setMusicMuted] = useState(() => STORAGE.get("prism_music_muted", false));
+  // True while a black overlay is fading in or out to mask a screen change.
+  const [transitioning, setTransitioning] = useState(false);
   const [sfxMuted, setSfxMuted] = useState(() => STORAGE.get("prism_sfx_muted", false));
 
   const timerRaf = useRef(null);
@@ -308,22 +310,34 @@ export default function PrismGame() {
       setTutStep(0);
       return;
     }
-    wipeRunState();
-    setBoard(initBoard());
-    triggerBoardDrop();
-    setScreen("play");
-    AUDIO.forceStart();
-    musicReady.current = true;
+    // Smooth menu → game transition: fade a black overlay IN (~280 ms),
+    // swap screens under cover of the black, then fade it back OUT.
+    setTransitioning(true);
+    setTimeout(() => {
+      wipeRunState();
+      setBoard(initBoard());
+      triggerBoardDrop();
+      setScreen("play");
+      AUDIO.forceStart();
+      musicReady.current = true;
+      // Clear the overlay on the next frame so CSS sees an opacity change
+      // and transitions back out instead of snapping.
+      requestAnimationFrame(() => setTransitioning(false));
+    }, 280);
   }, []);
 
   const finishTutorial = useCallback(() => {
     STORAGE.set(TUT_KEY, true);
-    setShowTut(false);
-    setBoard(initBoard());
-    triggerBoardDrop();
-    setScreen("play");
-    AUDIO.forceStart();
-    musicReady.current = true;
+    setTransitioning(true);
+    setTimeout(() => {
+      setShowTut(false);
+      setBoard(initBoard());
+      triggerBoardDrop();
+      setScreen("play");
+      AUDIO.forceStart();
+      musicReady.current = true;
+      requestAnimationFrame(() => setTransitioning(false));
+    }, 280);
   }, []);
 
   const backToMenu = useCallback(() => {
@@ -2023,6 +2037,13 @@ export default function PrismGame() {
     musicReady.current = true;
   };
 
+  // Full-screen black fade overlay used to cover screen transitions.
+  // Opacity is driven by `transitioning` — the CSS transition gives us
+  // the smooth fade in and out for free.
+  const transitionOverlay = (
+    <div className={`page-fade ${transitioning ? "on" : ""}`} />
+  );
+
   if (screen === "menu" && !showTut) {
     return (
       <>
@@ -2038,6 +2059,7 @@ export default function PrismGame() {
           onOpenAbout={() => setShowAbout(true)}
           onCloseAbout={() => setShowAbout(false)}
         />
+        {transitionOverlay}
       </>
     );
   }
@@ -2059,6 +2081,7 @@ export default function PrismGame() {
             }
           }}
         />
+        {transitionOverlay}
       </>
     );
   }
@@ -2169,6 +2192,7 @@ export default function PrismGame() {
           )}
         </div>
       </div>
+      {transitionOverlay}
     </div>
   );
 }
