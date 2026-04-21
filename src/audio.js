@@ -622,6 +622,16 @@ export const AUDIO = (() => {
         sn(1047, 0.25, 0.12, "sine", t + 0.08);
         sn(1319, 0.2, 0.1, "sine", t + 0.16);
       }
+      if (type === "specialSpawn") {
+        // Rising arpeggio played when a match creates a power-up (zap,
+        // bomb, inferno, vortex) — plays ALONGSIDE the match chime, not
+        // instead of it. Distinct from the power-up activation SFX so
+        // the player doesn't mistake creation for detonation.
+        sn(523, 0.18, 0.16, "sine", t); // C
+        sn(659, 0.18, 0.14, "sine", t + 0.07); // E
+        sn(880, 0.22, 0.12, "sine", t + 0.14); // A
+        sn(1175, 0.2, 0.1, "triangle", t + 0.22); // D
+      }
       if (type === "doublePrism") {
         // Softer impact — triangles instead of sawtooth/square, and
         // ceiling lowered from 2000 to 1200.

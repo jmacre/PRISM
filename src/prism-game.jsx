@@ -621,34 +621,36 @@ export default function PrismGame() {
       setFreshGems(new Set());
       checkFever(level);
 
-      // Pick the SFX based on what's in the match:
-      //   • ACTIVATING an existing special → full activation SFX
-      //     (zap / bomb / inferno / vortex).
-      //   • CREATING a special from a long match → only the truly
-      //     spectacular ones (inferno @ 6, vortex @ 7+) play the big
-      //     SFX; bomb/zap creation stays on the regular match chime
-      //     because hearing a "boom" just for making a bomb is weird.
-      const spawnTypes = toCreate.map(s => s.type);
-      const hasVortex = specTypes.includes("vortex") || spawnTypes.includes("vortex");
-      const hasInferno = specTypes.includes("inferno") || spawnTypes.includes("inferno");
-      const hasBombActivated = specTypes.includes("bomb");
-      const hasZapActivated = specTypes.includes("zap");
-      if (hasVortex) {
+      // Activation SFX — fired only when an EXISTING special is in the
+      // match (i.e. the player actually triggered it). Creating a new
+      // power-up from a 4+/5+/6+/7+ match plays the regular match chime
+      // plus a separate "special spawned" sparkle below.
+      const isInferno = specTypes.includes("inferno") && !specTypes.includes("vortex");
+      if (specTypes.includes("vortex")) {
         AUDIO.sfx("vortex");
         shakeBoard();
-      } else if (hasInferno && !hasVortex) {
+      } else if (isInferno) {
         AUDIO.sfx("inferno");
         shakeBoard();
         setTimeout(shakeBoard, 250);
         setTimeout(shakeBoard, 500);
-      } else if (hasBombActivated) {
+      } else if (specTypes.includes("bomb")) {
         AUDIO.sfx("bomb");
         if (specTypes.length >= 2) shakeBoard();
-      } else if (hasZapActivated) {
+      } else if (specTypes.includes("zap")) {
         AUDIO.sfx("zap");
       } else {
         const { r, c } = parseKey([...matched][0]);
         AUDIO.sfx("match", b[r]?.[c]?.c || "r");
+      }
+
+      // If the match CREATED a power-up (zap/bomb/inferno/vortex), play a
+      // short rising sparkle alongside — distinct from the activation
+      // SFX so the player hears "you made something" without thinking
+      // a bomb just went off. Scheduled after the match chime so it
+      // isn't suppressed by the HI-priority gate.
+      if (toCreate.length > 0 && !specTypes.length) {
+        setTimeout(() => AUDIO.sfx("specialSpawn"), 80);
       }
       if (level > 2) AUDIO.sfx("cascade", level);
 
