@@ -56,18 +56,6 @@ export function initBoard() {
       }
     }
   }
-  // TEMP — seed 4 random cells with bomb power-ups for SFX testing.
-  // Remove before shipping. Each bomb sits on an existing gem, keeping
-  // its colour so matches still work.
-  const seeded = new Set();
-  while (seeded.size < 4) {
-    const r = (Math.random() * ROWS) | 0;
-    const c = (Math.random() * COLS) | 0;
-    const key = `${r},${c}`;
-    if (seeded.has(key)) continue;
-    seeded.add(key);
-    b[r][c].type = "bomb";
-  }
   return b;
 }
 
