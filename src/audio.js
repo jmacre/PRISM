@@ -499,12 +499,21 @@ export const AUDIO = (() => {
         sn(300, 0.12, 0.1, "triangle", t + 0.06, 100);
       }
       if (type === "bomb") {
-        sn(60, 0.7, 0.5, "sine", t, 15);
-        sn(120, 0.5, 0.3, "sine", t + 0.02, 30);
-        sn(200, 0.3, 0.2, "triangle", t + 0.05, 50);
-        sn(40, 0.8, 0.35, "sine", t + 0.08, 10);
-        for (let i = 0; i < 5; i++) {
-          sn(100 + Math.random() * 200, 0.15, 0.08, "sawtooth", t + 0.1 + i * 0.04);
+        // Bomb SFX rebuilt for more "kaboom" and less "error beep":
+        //   • Sharp downward crack — sawtooth from 900→40 Hz over 80 ms
+        //     gives the bomb a clear impact transient at the front.
+        //   • Two overlapping bass sweeps form the round thump body.
+        //   • A short "debris" burst of low random sawtooths fired
+        //     simultaneously (not sequenced) for a crackling tail.
+        sn(900, 0.08, 0.42, "sawtooth", t, 40); // crack
+        sn(250, 0.35, 0.55, "sine", t, 32); // thump
+        sn(140, 0.6, 0.4, "sine", t + 0.02, 28); // body
+        sn(60, 0.9, 0.38, "sine", t + 0.04, 22); // low rumble
+        // Debris — all starting within 40ms of each other so they blend
+        // into a single chaotic burst instead of a sequential sweep.
+        for (let i = 0; i < 4; i++) {
+          const f = 180 + Math.random() * 280;
+          sn(f, 0.22, 0.1, "sawtooth", t + 0.06 + Math.random() * 0.04, f * 0.35);
         }
       }
       if (type === "inferno") {
