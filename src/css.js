@@ -113,37 +113,30 @@ export const CSS = `
 .ov-sub{font-size:.62rem;letter-spacing:.1em;color:#443355;margin-top:-4px;}
 .ov-score{font-family:'Orbitron',sans-serif;font-size:.95rem;color:#cc88ff;letter-spacing:.1em;padding-left:.1em;margin-top:4px;}
 
-/* Main menu */
-/* Title screen — PRISM logo sits ~25% from the top (75% from the
-   bottom), with margin below it so PLAY still lands just past the
-   vertical midpoint.
-
-   `.menu` starts out solid black and only switches to the purple radial
-   gradient once the ready state flips. Without this, the gradient
-   briefly flashes between the initial page load and the first paint of
-   the black ::before cover. */
-.menu{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;gap:40px;z-index:700;padding:25vh 20px 32px;}
-.menu-ready{background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);}
-.menu .pt{font-size:clamp(3rem,14vw,4.8rem);margin-bottom:15vh;}
-
-/* Title screen intro — two overlapping phases:
-   1. The pure-black cover fades off, revealing the gradient.
-   2. Each menu element softly fades up (tiny drift) on a stagger that
-      begins partway through the background fade so both phases overlap
-      rather than feeling sequential / plop-y. */
-.menu::before{
-  content:"";position:absolute;inset:0;background:#000;z-index:1;pointer-events:none;
-  opacity:1;
-  transition:opacity 1.1s cubic-bezier(.45,0,.2,1);
+/* Main menu. The wrapper itself fades from black to the gradient on
+   mount via a CSS animation (no JS state) so it can never get stuck.
+   Individual children fade up on a stagger starting a beat after the
+   background appears. */
+.menu{
+  position:fixed;inset:0;
+  background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);
+  display:flex;flex-direction:column;align-items:center;gap:40px;
+  z-index:700;padding:25vh 20px 32px;
+  animation:menuBgIn 1s ease-out both;
 }
-.menu-ready::before{opacity:0;}
-.menu > *{position:relative;z-index:2;}
-.menu-loading .menu-stagger{opacity:0;}
-.menu-ready .menu-stagger{animation:menuFadeIn 1s cubic-bezier(.32,.72,.35,1) both;}
-.menu-ready .menu-stagger:nth-of-type(1){animation-delay:.30s;}
-.menu-ready .menu-stagger:nth-of-type(2){animation-delay:.55s;}
-.menu-ready .menu-stagger:nth-of-type(3){animation-delay:.75s;}
-.menu-ready .menu-stagger:nth-of-type(4){animation-delay:.95s;}
+.menu .pt{font-size:clamp(3rem,14vw,4.8rem);margin-bottom:15vh;}
+@keyframes menuBgIn{
+  from{opacity:0;}
+  to{opacity:1;}
+}
+
+/* Staggered element reveal — each `.menu-stagger` child fades up after
+   the background has appeared. */
+.menu-stagger{animation:menuFadeIn .9s cubic-bezier(.32,.72,.35,1) both;}
+.menu-stagger:nth-of-type(1){animation-delay:.35s;}
+.menu-stagger:nth-of-type(2){animation-delay:.55s;}
+.menu-stagger:nth-of-type(3){animation-delay:.75s;}
+.menu-stagger:nth-of-type(4){animation-delay:.95s;}
 @keyframes menuFadeIn{
   from{opacity:0;transform:translateY(10px);}
   to  {opacity:1;transform:translateY(0);}
