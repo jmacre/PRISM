@@ -19,6 +19,10 @@ export const AUDIO = (() => {
   let _activeOsc = 0;
   let _lastSfx = "";
   let _lastSfxTime = 0;
+  // Timestamp of the last "big" power-up SFX. Used to suppress the light
+  // chime SFX (match / cascade / multtick) that would otherwise drown out
+  // the tail of a zap/bomb/inferno/vortex.
+  let _lastHiTime = 0;
   let _suspendId = 0;
 
   let schedTimer = null;
@@ -436,10 +440,23 @@ export const AUDIO = (() => {
       // Always let game-over through; otherwise drop when we're already loud.
       if (_activeOsc > MAX_POLY && type !== "over") return;
 
+      // Priority: while a big power-up SFX is still ringing, suppress the
+      // small chimes that would otherwise drown it out. Without this the
+      // zap/bomb/etc. cascade SFX stacks with the "match" chime + cascade
+      // chirp and the ear latches onto the high-frequency chime instead
+      // of the meaty power-up.
+      const now2 = ctx.currentTime;
+      const HI = ["vortex", "inferno", "bomb", "zap", "doublePrism", "wildcard",
+                  "fever", "mult10", "mult5", "mult2", "shuffle", "prismSpawn"];
+      const LO = ["match", "cascade", "multtick", "bonus", "select", "unchain"];
+      const isHi = HI.includes(type);
+      const isLo = LO.includes(type);
+      if (isLo && now2 - _lastHiTime < 0.55) return;
+      if (isHi) _lastHiTime = now2;
+
       // Debounce: skip a second fire of the same SFX within 80 ms.
       // Overlapping identical SFX are almost never pleasant and easily
       // push us past the polyphony cap.
-      const now2 = ctx.currentTime;
       if (_lastSfx === type && now2 - _lastSfxTime < 0.08) return;
       _lastSfx = type;
       _lastSfxTime = now2;
