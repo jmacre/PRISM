@@ -114,14 +114,13 @@ export const CSS = `
 .ov-score{font-family:'Orbitron',sans-serif;font-size:.95rem;color:#cc88ff;letter-spacing:.1em;padding-left:.1em;margin-top:4px;}
 
 /* Main menu.
-   • `.menu` has the gradient.
-   • `.menu::before` is a black overlay that fades off on mount (CSS
-     animation, not JS state — the animation runs as soon as CSS sees
-     the element and can't get stuck).
-   • Children use `animation-fill-mode: backwards` so they're invisible
-     during the delay, fade in, then return to the default `opacity: 1`
-     after the animation — meaning even if the keyframes fail to run,
-     the elements still end up visible.
+   - .menu has the gradient.
+   - .menu::before is a black overlay that fades off on mount (CSS
+     animation, not JS state — runs on first paint, cannot get stuck).
+   - Children use animation-fill-mode: backwards so they're invisible
+     during the delay, fade in, then return to the default opacity 1
+     after the animation — so even if the keyframes fail to run, the
+     elements still end up visible.
 */
 .menu{
   position:fixed;inset:0;
