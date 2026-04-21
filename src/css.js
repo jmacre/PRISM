@@ -143,8 +143,9 @@ export const CSS = `
   100%{opacity:0;}
 }
 
-/* Staggered element reveal. `backwards` = invisible during delay, then
-   fades in. After animation, returns to CSS default (visible). */
+/* Staggered element reveal. backwards fill-mode keeps them invisible
+   during the delay, fades them in, then returns to CSS default at the
+   end. If the animation never runs, elements stay visible. */
 .menu-stagger{animation:menuFadeIn .9s cubic-bezier(.32,.72,.35,1) backwards;}
 .menu-stagger:nth-of-type(1){animation-delay:.35s;}
 .menu-stagger:nth-of-type(2){animation-delay:.55s;}
