@@ -299,7 +299,9 @@ export const AUDIO = (() => {
       try {
         if (ctx) {
           if (ctx.state === "suspended") ctx.resume();
-          if (master) master.gain.setValueAtTime(0.32, ctx.currentTime);
+          // master now holds the global level (1.0 = unity) — the
+          // music and SFX level trims live on their own buses.
+          if (master) master.gain.setValueAtTime(1.0, ctx.currentTime);
         }
       } catch {}
     },
@@ -324,8 +326,9 @@ export const AUDIO = (() => {
       const t = ctx.currentTime;
       master.gain.cancelScheduledValues(t);
       master.gain.setValueAtTime(0.0001, t);
-      // Longer fade-in eliminates the thump when music starts.
-      master.gain.linearRampToValueAtTime(0.32, t + 0.15);
+      // Ramp master to unity (1.0). The music level is carried by
+      // musicBus (at 0.32) behind master, not by master itself.
+      master.gain.linearRampToValueAtTime(1.0, t + 0.15);
       schedule();
     },
 
@@ -364,13 +367,20 @@ export const AUDIO = (() => {
         try {
           if (ctx.state === "suspended") ctx.resume();
         } catch {}
-        // Snap master gain back up (it may have been at 0 from a pause).
+        // Snap master + music bus gains back up (they may have been
+        // faded out by a pause or a previous game-over duck).
         try {
           if (master) {
             const t = ctx.currentTime;
             master.gain.cancelScheduledValues(t);
             master.gain.setValueAtTime(master.gain.value, t);
-            master.gain.linearRampToValueAtTime(0.32, t + 0.15);
+            master.gain.linearRampToValueAtTime(1.0, t + 0.15);
+          }
+          if (musicBus) {
+            const t = ctx.currentTime;
+            musicBus.gain.cancelScheduledValues(t);
+            musicBus.gain.setValueAtTime(musicBus.gain.value, t);
+            musicBus.gain.linearRampToValueAtTime(0.32, t + 0.15);
           }
         } catch {}
         running = true;
@@ -394,7 +404,7 @@ export const AUDIO = (() => {
             const t = ctx.currentTime;
             master.gain.cancelScheduledValues(t);
             master.gain.setValueAtTime(master.gain.value, t);
-            master.gain.linearRampToValueAtTime(0.32, t + 0.2);
+            master.gain.linearRampToValueAtTime(1.0, t + 0.2);
           }
         } catch {}
         if (!running && ctx) {
@@ -655,12 +665,13 @@ export const AUDIO = (() => {
         sn(f, 0.05, 0.08, "sine", t, f * 1.3);
       }
       if (type === "clack") {
-        // Short "tock" — bright-ish triangle layers near the top of the
-        // master lowpass's passband, no low-end thud. Triangle (not
-        // square) to avoid the edgy choppy texture.
+        // Mid-range knock. Fast pitch sweep (700→200 Hz in ~50 ms) gives
+        // an "impact transient" character instead of a sustained tone,
+        // so it doesn't read as squeaky or musical. Second layer adds
+        // body without forming a chord with the first.
         const pitch = 0.85 + Math.random() * 0.3;
-        sn(1350 * pitch, 0.04, 0.16, "triangle", t, 900 * pitch); // tock
-        sn(900 * pitch, 0.05, 0.1, "triangle", t, 500 * pitch); // body
+        sn(700 * pitch, 0.05, 0.18, "triangle", t, 220 * pitch);
+        sn(440 * pitch, 0.06, 0.1, "triangle", t, 190 * pitch);
       }
       if (type === "over") {
         // Cinematic "game over" sting — shorter, punchier take:
