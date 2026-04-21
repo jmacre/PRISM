@@ -447,8 +447,9 @@ export const AUDIO = (() => {
       // of the meaty power-up.
       const now2 = ctx.currentTime;
       const HI = ["vortex", "inferno", "bomb", "zap", "doublePrism", "wildcard",
-                  "fever", "mult10", "mult5", "mult2", "shuffle", "prismSpawn"];
-      const LO = ["match", "cascade", "multtick", "bonus", "select", "unchain"];
+                  "fever", "shuffle", "prismSpawn"];
+      const LO = ["match", "cascade", "multtick", "bonus", "select", "unchain",
+                  "mult2", "mult5", "mult10"];
       const isHi = HI.includes(type);
       const isLo = LO.includes(type);
       if (isLo && now2 - _lastHiTime < 0.55) return;
