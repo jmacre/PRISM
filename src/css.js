@@ -120,19 +120,26 @@ export const CSS = `
 .menu{position:fixed;inset:0;background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);display:flex;flex-direction:column;align-items:center;gap:40px;z-index:700;padding:25vh 20px 32px;}
 .menu .pt{font-size:clamp(3rem,14vw,4.8rem);margin-bottom:15vh;}
 
-/* While the renderer warms up, the menu sits on a pure-black bg and its
-   children are hidden. Once ready, each child falls in from the top with
-   a staggered delay. */
-.menu-loading{background:#000;}
+/* Title screen intro — two overlapping phases:
+   1. The pure-black "loading" cover fades to the gradient over ~1s.
+   2. Each menu element softly fades up (tiny drift) on a stagger that
+      begins partway through the background fade so both phases overlap
+      rather than feeling sequential / plop-y. */
+.menu::before{
+  content:"";position:absolute;inset:0;background:#000;z-index:1;pointer-events:none;
+  opacity:1;
+  transition:opacity 1.1s cubic-bezier(.45,0,.2,1);
+}
+.menu-ready::before{opacity:0;}
+.menu > *{position:relative;z-index:2;}
 .menu-loading .menu-stagger{opacity:0;}
-.menu-ready .menu-stagger{animation:menuFallIn .55s cubic-bezier(.22,1.06,.36,1) both;}
-.menu-ready .menu-stagger:nth-of-type(1){animation-delay:0s;}
-.menu-ready .menu-stagger:nth-of-type(2){animation-delay:.12s;}
-.menu-ready .menu-stagger:nth-of-type(3){animation-delay:.24s;}
-.menu-ready .menu-stagger:nth-of-type(4){animation-delay:.36s;}
-@keyframes menuFallIn{
-  from{opacity:0;transform:translateY(-32px);}
-  60% {opacity:1;transform:translateY(6px);}
+.menu-ready .menu-stagger{animation:menuFadeIn 1s cubic-bezier(.32,.72,.35,1) both;}
+.menu-ready .menu-stagger:nth-of-type(1){animation-delay:.30s;}
+.menu-ready .menu-stagger:nth-of-type(2){animation-delay:.55s;}
+.menu-ready .menu-stagger:nth-of-type(3){animation-delay:.75s;}
+.menu-ready .menu-stagger:nth-of-type(4){animation-delay:.95s;}
+@keyframes menuFadeIn{
+  from{opacity:0;transform:translateY(10px);}
   to  {opacity:1;transform:translateY(0);}
 }
 .menu .ps{font-size:.7rem;margin-top:8px;}

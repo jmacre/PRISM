@@ -397,9 +397,11 @@ export default function PrismGame() {
   const triggerGameOver = useCallback(
     reason => {
       gameOvRef.current = true;
-      AUDIO.suspendAll();
+      // Duck just the music (SFX stays audible) so the "over" sting
+      // rings out clearly. stopMusic runs after the sting finishes.
+      AUDIO.duckForGameOver();
       AUDIO.sfx("over");
-      setTimeout(() => AUDIO.stopMusic(), 2200);
+      setTimeout(() => AUDIO.stopMusic(), 3000);
       setBestInfo(saveBest(scoreRefForSave.current));
       bumpStats(scoreRefForSave.current, bestStreakRef.current);
       setGoReason(reason);

@@ -7,6 +7,9 @@
 export const AUDIO = (() => {
   let ctx = null;
   let master = null;
+  // Separate buses let us fade music independently of SFX — needed so the
+  // game-over sting can ring out while the music ducks beneath it.
+  let musicBus = null;
   let sfxBus = null;
   let verb = null;
 
@@ -86,15 +89,18 @@ export const AUDIO = (() => {
       tone.frequency.value = 1500;
       tone.Q.value = 0.9;
 
+      // Master is the global mute point (suspend/pause fade it). Music and
+      // SFX have their own pre-master buses so we can duck one without
+      // the other.
       master = ctx.createGain();
-      master.gain.value = 0.32;
+      master.gain.value = 1.0;
 
-      // Dedicated SFX bus attenuated to 45% of master. SFX were too loud
-      // relative to music, which made the high-pitched ones feel painful.
-      // Individual SFX volumes stay as tuned — the bus just pulls the
-      // whole category down.
+      musicBus = ctx.createGain();
+      musicBus.gain.value = 0.32;
+      musicBus.connect(master);
+
       sfxBus = ctx.createGain();
-      sfxBus.gain.value = 0.45;
+      sfxBus.gain.value = 0.15;
       sfxBus.connect(master);
 
       master.connect(comp);
@@ -119,7 +125,7 @@ export const AUDIO = (() => {
       const vg = ctx.createGain();
       vg.gain.value = 0.15;
       verb.connect(vg);
-      vg.connect(master);
+      vg.connect(musicBus);
 
       running = false;
       _activeOsc = 0;
@@ -144,7 +150,7 @@ export const AUDIO = (() => {
     o.type = type;
     o.frequency.value = freq;
     o.connect(g);
-    g.connect(master);
+    g.connect(musicBus);
     if (rv && verb) {
       const rg = ctx.createGain();
       rg.gain.value = rv;
@@ -173,7 +179,7 @@ export const AUDIO = (() => {
     o.frequency.setValueAtTime(130, t);
     o.frequency.linearRampToValueAtTime(38, t + 0.26);
     o.connect(g);
-    g.connect(master);
+    g.connect(musicBus);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.35, t + 0.01);
     g.gain.linearRampToValueAtTime(0.0001, t + 0.3);
@@ -246,6 +252,22 @@ export const AUDIO = (() => {
       } catch {}
     },
 
+    // Game-over variant: stop the music scheduler and fade MUSIC out
+    // over ~2 seconds. SFX stays audible (it's on its own bus) so the
+    // "over" sting can ring out cleanly without being buried by the mix.
+    duckForGameOver() {
+      running = false;
+      clearTimeout(schedTimer);
+      try {
+        if (ctx && musicBus) {
+          const t = ctx.currentTime;
+          musicBus.gain.cancelScheduledValues(t);
+          musicBus.gain.setValueAtTime(musicBus.gain.value, t);
+          musicBus.gain.linearRampToValueAtTime(0.0001, t + 1.8);
+        }
+      } catch {}
+    },
+
     // Full suspend — used when the app actually goes to the background
     // (tab hidden / recent-apps button). Fades, then calls ctx.suspend()
     // so Android stops processing audio entirely. Produces a small click
@@ -314,6 +336,7 @@ export const AUDIO = (() => {
         } catch {}
         ctx = null;
         master = null;
+        musicBus = null;
         sfxBus = null;
         verb = null;
         _activeOsc = 0;
@@ -604,11 +627,20 @@ export const AUDIO = (() => {
         sn(f, 0.05, 0.08, "sine", t, f * 1.3);
       }
       if (type === "over") {
-        sn(110, 1.4, 0.32, "sine", t, 55);
-        sn(330, 1.1, 0.14, "triangle", t, 90);
-        [262, 329, 196].forEach((f, i) => {
-          sn(f, 0.9, 0.13, "sine", t + 0.7 + i * 0.09);
-        });
+        // Cinematic "game over" sting:
+        //   • A low thump on the downbeat for weight.
+        //   • A long descending bass sweep (evokes a failing engine).
+        //   • A minor chord rising underneath for the tragic feel.
+        //   • A final low drone that outlives everything else.
+        sn(80, 0.35, 0.55, "sine", t, 40); // opening thump
+        sn(180, 2.2, 0.42, "sine", t, 55); // long descending sweep
+        sn(90, 2.2, 0.38, "sine", t, 38); // parallel bass sweep
+        // D minor chord building in: D (294), F (349), A (440)
+        sn(294, 1.8, 0.22, "sine", t + 0.2);
+        sn(349, 1.8, 0.2, "sine", t + 0.35);
+        sn(440, 1.8, 0.18, "sine", t + 0.5);
+        // Low drone tail for finality
+        sn(60, 3.0, 0.28, "sine", t + 0.6, 45);
       }
     },
   };
