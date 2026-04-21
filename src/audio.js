@@ -546,19 +546,22 @@ export const AUDIO = (() => {
         }
       }
       if (type === "inferno") {
-        // Was 14 sawtooth + 7 sine + 2 bass = 23 oscillators. Cut to
-        // 6 + 4 + 2 = 12 and swapped the sawtooths for triangles so the
-        // Android audio thread doesn't have to render that many harsh
-        // waveforms simultaneously.
-        for (let i = 0; i < 6; i++) {
-          const f = 100 + i * 80;
-          sn(f, 1.1, 0.22, "triangle", t + i * 0.07, f * 1.8);
-        }
-        [220, 330, 440, 587].forEach((f, i) => {
-          sn(f, 0.9, 0.18, "sine", t + 0.2 + i * 0.08, f * 0.5);
-        });
-        sn(55, 1.3, 0.55, "sine", t, 20);
-        sn(110, 1.0, 0.3, "triangle", t + 0.05, 35);
+        // Fiery explosion: bright whoosh down + deep impact + body.
+        // Keeps the oscillator count low so the polyphony cap doesn't
+        // swallow half the sound during gameplay.
+        //
+        //   • Bright "whoosh" — sawtooth sweeping from near the master
+        //     lowpass ceiling down to low bass.
+        //   • Two overlapping low sine impacts.
+        //   • A mid triangle "body" for warmth.
+        //   • A low rumble tail.
+        sn(1400, 0.22, 0.3, "sawtooth", t, 180); // whoosh
+        sn(80, 0.5, 0.55, "sine", t, 40); // impact
+        sn(50, 0.8, 0.45, "sine", t, 25); // deep sub
+        sn(880, 0.45, 0.22, "triangle", t + 0.05, 440); // mid body
+        sn(440, 0.7, 0.22, "triangle", t + 0.1, 220); // fire body
+        sn(330, 0.6, 0.2, "triangle", t + 0.15, 165); // warmth
+        sn(110, 1.0, 0.3, "sine", t + 0.2, 55); // rumble tail
       }
       if (type === "vortex") {
         [110, 147, 196, 262, 330, 440, 523, 659, 784, 1047].forEach((f, i) => {

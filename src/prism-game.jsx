@@ -614,9 +614,14 @@ export default function PrismGame() {
       setFreshGems(new Set());
       checkFever(level);
 
-      // Pick the loudest SFX for whatever combination of specials triggered.
-      const isInferno = specTypes.includes("inferno") && !specTypes.includes("vortex");
-      if (specTypes.includes("vortex")) {
+      // Pick the loudest SFX for whatever combination of specials was
+      // either activated (in specTypes) or spawned (toCreate). Previously
+      // a match-6 that SPAWNED an inferno only played the generic match
+      // chime because specTypes was empty — now the spawn counts too.
+      const spawnTypes = toCreate.map(s => s.type);
+      const allTypes = new Set([...specTypes, ...spawnTypes]);
+      const isInferno = allTypes.has("inferno") && !allTypes.has("vortex");
+      if (allTypes.has("vortex")) {
         AUDIO.sfx("vortex");
         shakeBoard();
       } else if (isInferno) {
@@ -624,10 +629,10 @@ export default function PrismGame() {
         shakeBoard();
         setTimeout(shakeBoard, 250);
         setTimeout(shakeBoard, 500);
-      } else if (specTypes.includes("bomb")) {
+      } else if (allTypes.has("bomb")) {
         AUDIO.sfx("bomb");
-        if (specTypes.length >= 2) shakeBoard();
-      } else if (specTypes.includes("zap")) {
+        if (allTypes.size >= 2) shakeBoard();
+      } else if (allTypes.has("zap")) {
         AUDIO.sfx("zap");
       } else {
         const { r, c } = parseKey([...matched][0]);

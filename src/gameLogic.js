@@ -56,6 +56,26 @@ export function initBoard() {
       }
     }
   }
+  // TEMP — seed some specials into the starting board for SFX testing.
+  // Remove before shipping.
+  const seeded = new Set();
+  const SEEDS = [
+    ["bomb", 3],
+    ["inferno", 2],
+    ["zap", 2],
+  ];
+  for (const [type, count] of SEEDS) {
+    let placed = 0;
+    while (placed < count) {
+      const r = (Math.random() * ROWS) | 0;
+      const c = (Math.random() * COLS) | 0;
+      const key = `${r},${c}`;
+      if (seeded.has(key)) continue;
+      seeded.add(key);
+      b[r][c].type = type;
+      placed++;
+    }
+  }
   return b;
 }
 
