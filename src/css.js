@@ -130,13 +130,14 @@ export const CSS = `
 }
 .menu .pt{font-size:clamp(3rem,14vw,4.8rem);margin-bottom:15vh;}
 
-/* Black overlay that covers the gradient on mount, then fades off
-   automatically. No JS state — runs on first CSS paint. */
+/* Black overlay that covers EVERYTHING (gradient + children) on mount,
+   then fades off. Needs to sit above the children (high z-index) so the
+   user doesn't see them pop in before the fade completes. */
 .menu::before{
-  content:"";position:absolute;inset:0;background:#000;z-index:1;pointer-events:none;
+  content:"";position:absolute;inset:0;background:#000;z-index:10;pointer-events:none;
   animation:menuCoverOut 1.1s cubic-bezier(.45,0,.2,1) forwards;
 }
-.menu > *{position:relative;z-index:2;}
+.menu > *{position:relative;z-index:1;}
 @keyframes menuCoverOut{
   0%  {opacity:1;}
   15% {opacity:1;}
