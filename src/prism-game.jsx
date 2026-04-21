@@ -262,6 +262,17 @@ export default function PrismGame() {
     setFreshGems(allFresh);
     freshStart.current = 0; // assigned on first draw frame for perfect sync
     setTimeout(() => setFreshGems(new Set()), 800);
+    playClacks(10, 500); // full-board drop — more clacks over a longer window
+  };
+
+  // Schedule N clack SFX spread across a duration (ms) with slight random
+  // jitter so they don't feel mechanical. The `match` debounce on the
+  // audio side naturally thins out ones that land too close together.
+  const playClacks = (count, durMs) => {
+    for (let i = 0; i < count; i++) {
+      const delay = (i * durMs) / Math.max(1, count) + Math.random() * 40;
+      setTimeout(() => AUDIO.sfx("clack"), delay);
+    }
   };
 
   // Wipe all per-run state back to defaults. Used by startGame/backToMenu/reset
@@ -678,6 +689,13 @@ export default function PrismGame() {
         setBoard(filled);
         setFreshGems(fresh);
         if (fresh._hasPrism) AUDIO.sfx("prismSpawn");
+
+        // Clack sound per landing gem, scaled to the number of drops so a
+        // big cascade sounds busier than a 3-match.
+        const dropCount = Object.keys(drops).length + fresh.size;
+        if (dropCount > 0) {
+          playClacks(Math.min(8, Math.max(2, Math.ceil(dropCount / 3))), 350);
+        }
 
         // Try another cascade pass after the drop-in finishes animating.
         pauseAwareTimeout(() => {

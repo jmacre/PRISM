@@ -457,8 +457,9 @@ export const AUDIO = (() => {
 
       // Debounce: skip a second fire of the same SFX within 80 ms.
       // Overlapping identical SFX are almost never pleasant and easily
-      // push us past the polyphony cap.
-      if (_lastSfx === type && now2 - _lastSfxTime < 0.08) return;
+      // push us past the polyphony cap. Clack is exempt — landing
+      // bursts intentionally fire many in quick succession.
+      if (type !== "clack" && _lastSfx === type && now2 - _lastSfxTime < 0.08) return;
       _lastSfx = type;
       _lastSfxTime = now2;
 
@@ -652,6 +653,16 @@ export const AUDIO = (() => {
         // The mult=10 variant sat at 2500 Hz — dropped to 1400.
         const f = args[0] >= 5 ? 1400 : 1100;
         sn(f, 0.05, 0.08, "sine", t, f * 1.3);
+      }
+      if (type === "clack") {
+        // Short percussive "click" used when a gem lands during a drop.
+        // Randomize the fundamental slightly each call so a burst of
+        // clacks doesn't become a tonal chord — we want it to feel
+        // like physical pieces hitting a surface.
+        const pitch = 0.85 + Math.random() * 0.3;
+        const f = 280 * pitch;
+        sn(f, 0.04, 0.11, "triangle", t, f * 0.55);
+        sn(f * 2.6, 0.03, 0.06, "triangle", t, f * 2);
       }
       if (type === "over") {
         // Cinematic "game over" sting — shorter, punchier take:
