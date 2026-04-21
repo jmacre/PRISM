@@ -621,25 +621,30 @@ export default function PrismGame() {
       setFreshGems(new Set());
       checkFever(level);
 
-      // Pick the loudest SFX for whatever combination of specials was
-      // either activated (in specTypes) or spawned (toCreate). Previously
-      // a match-6 that SPAWNED an inferno only played the generic match
-      // chime because specTypes was empty — now the spawn counts too.
+      // Pick the SFX based on what's in the match:
+      //   • ACTIVATING an existing special → full activation SFX
+      //     (zap / bomb / inferno / vortex).
+      //   • CREATING a special from a long match → only the truly
+      //     spectacular ones (inferno @ 6, vortex @ 7+) play the big
+      //     SFX; bomb/zap creation stays on the regular match chime
+      //     because hearing a "boom" just for making a bomb is weird.
       const spawnTypes = toCreate.map(s => s.type);
-      const allTypes = new Set([...specTypes, ...spawnTypes]);
-      const isInferno = allTypes.has("inferno") && !allTypes.has("vortex");
-      if (allTypes.has("vortex")) {
+      const hasVortex = specTypes.includes("vortex") || spawnTypes.includes("vortex");
+      const hasInferno = specTypes.includes("inferno") || spawnTypes.includes("inferno");
+      const hasBombActivated = specTypes.includes("bomb");
+      const hasZapActivated = specTypes.includes("zap");
+      if (hasVortex) {
         AUDIO.sfx("vortex");
         shakeBoard();
-      } else if (isInferno) {
+      } else if (hasInferno && !hasVortex) {
         AUDIO.sfx("inferno");
         shakeBoard();
         setTimeout(shakeBoard, 250);
         setTimeout(shakeBoard, 500);
-      } else if (allTypes.has("bomb")) {
+      } else if (hasBombActivated) {
         AUDIO.sfx("bomb");
-        if (allTypes.size >= 2) shakeBoard();
-      } else if (allTypes.has("zap")) {
+        if (specTypes.length >= 2) shakeBoard();
+      } else if (hasZapActivated) {
         AUDIO.sfx("zap");
       } else {
         const { r, c } = parseKey([...matched][0]);
