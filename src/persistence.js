@@ -79,12 +79,14 @@ export function streakTier(streak) {
 
 // Time ceiling decays from 14 s (move 0) toward 1.5 s as the player keeps
 // moving. The exponential shape is what makes the game naturally accelerate.
+// Halved the decay constant (38 → 19) so the same pressure curve hits at
+// roughly half as many moves.
 export function getMaxMs(moves) {
-  return Math.round(1500 + 12500 * Math.exp(-moves / 38));
+  return Math.round(1500 + 12500 * Math.exp(-moves / 19));
 }
 
 // Time bonus per successful swap — also decays, so late-game gives tighter
-// windows than early-game.
+// windows than early-game. Halved (40 → 20) to match the ceiling curve.
 export function getBonusMs(moves) {
-  return Math.round(1000 + 5000 * Math.exp(-moves / 40));
+  return Math.round(1000 + 5000 * Math.exp(-moves / 20));
 }
