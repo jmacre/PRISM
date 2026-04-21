@@ -664,17 +664,15 @@ export const AUDIO = (() => {
         sn(130, 0.5, 0.22, "sine", t, 65);
       }
       if (type === "mult10") {
-        // Was ~22 oscillators and went up to 3136 Hz — by far the worst
-        // SFX for both crackling and high-pitch pain. Rebuilt with ~11
-        // oscillators max and a 1300 Hz ceiling.
+        // Short, punchy ×10 celebration — was ~1.45 s total, now ~0.95 s.
         for (let i = 0; i < 6; i++) {
           const f = 100 + i * 180;
           sn(f, 0.08, 0.15, "sine", t + i * 0.04, f * 1.8);
         }
         [261, 392, 523, 784, 1047].forEach((f, i) => {
-          sn(f, 0.9, 0.2, "sine", t + 0.3 + i * 0.02, f * 1.3);
+          sn(f, 0.5, 0.2, "sine", t + 0.3 + i * 0.02, f * 1.3);
         });
-        sn(55, 1.2, 0.4, "sine", t + 0.25, 30);
+        sn(55, 0.7, 0.4, "sine", t + 0.25, 30);
       }
       if (type === "multtick") {
         // The mult=10 variant sat at 2500 Hz — dropped to 1400.
