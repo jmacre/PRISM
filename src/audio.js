@@ -354,14 +354,18 @@ export const AUDIO = (() => {
     // guarantees a clean slate. Only rebuilds the AudioContext if it's
     // missing or closed; otherwise just reuses the existing one. Avoids
     // ~100ms of unnecessary setup on every new-game button press.
+    //
+    // IMPORTANT: always rebuild the ctx if it's missing, even when music
+    // is muted. SFX still need a live ctx to play through, and an earlier
+    // stopMusic() may have closed it.
     forceStart() {
-      if (_musicMuted) return;
       _suspendId++;
       running = false;
       clearTimeout(schedTimer);
       if (!ctx || ctx.state === "closed") {
         _buildCtx();
       }
+      if (_musicMuted) return;
       if (ctx) {
         // Resume if suspended so the context is audible.
         try {

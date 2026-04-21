@@ -255,18 +255,25 @@ export default function PrismGame() {
     }; // don't stop music here — only on explicit menu/game over
   }, [screen]); // eslint-disable-line
 
-  // Flag every cell as "fresh" so the draw loop runs the drop-in animation.
-  const triggerBoardDrop = () => {
+  // Single source of truth for "drop a fresh board from the top".
+  // Fills the fresh-gem set, kicks the drop-in animation, and schedules
+  // the landing-clack burst. Every code path that shows a new/reshuffled
+  // board — startGame, finishTutorial, reset, double-prism — goes
+  // through here so behaviour (and the clack SFX) stay consistent.
+  const dropFullBoard = () => {
     const allFresh = new Set();
     for (let rr = 0; rr < ROWS; rr++) for (let cc = 0; cc < COLS; cc++) allFresh.add(`${rr},${cc}`);
     setFreshGems(allFresh);
-    freshStart.current = 0; // assigned on first draw frame for perfect sync
+    // `0` tells the draw loop to set the animation start on its next
+    // frame — works both from cold (canvas not mounted yet) and from
+    // live (canvas already rendering).
+    freshStart.current = 0;
     setTimeout(() => setFreshGems(new Set()), 800);
-    // Full-board drop — fire a handful of clacks in the landing window.
-    // Count kept low (6) and spread over 500 ms so the burst reads as
-    // individual "tocks" rather than a machine-gun rattle.
     playClacks(6, 500, 500);
   };
+
+  // Back-compat alias for existing call sites.
+  const triggerBoardDrop = dropFullBoard;
 
   // Schedule N clack SFX spread across `durMs` starting at `startMs`.
   // Small random jitter so clacks don't feel mechanical. Used to punctuate
@@ -822,19 +829,14 @@ export default function PrismGame() {
           const allKeys = new Set();
           for (let rr = 0; rr < ROWS; rr++) for (let cc = 0; cc < COLS; cc++) allKeys.add(`${rr},${cc}`);
           setClr(allKeys);
-          // After clear animation, drop in a fresh clean board
+          // After clear animation, drop in a fresh clean board via the
+          // shared helper so clacks + animation timing match everywhere.
           pauseAwareTimeout(() => {
             setClr(new Set());
             vfxSpawned.current.clear();
-            const nb = initBoard();
-            const fresh = new Set();
-            for (let rr = 0; rr < ROWS; rr++) for (let cc = 0; cc < COLS; cc++) fresh.add(`${rr},${cc}`);
-            setBoard(nb);
-            setFreshGems(fresh);
-            // Landing clacks for the fresh double-prism board.
-            playClacks(6, 500, 500);
+            setBoard(initBoard());
+            dropFullBoard();
             pauseAwareTimeout(() => {
-              setFreshGems(new Set());
               busyRef.current = false;
               setBusy(false);
               setCombo(0);
@@ -2054,21 +2056,18 @@ export default function PrismGame() {
 
     // Rebuild the board and flag every cell as fresh for the drop-in animation.
     const allFresh = new Set();
-    for (let rr = 0; rr < ROWS; rr++) for (let cc = 0; cc < COLS; cc++) allFresh.add(`${rr},${cc}`);
     setBoard(initBoard());
-    setFreshGems(allFresh);
-    freshStart.current = performance.now();
-    setTimeout(() => setFreshGems(new Set()), 600);
+    setSel(null);
+    setClr(new Set());
 
     remainingRef.current = getMaxMs(0);
     AUDIO.setTempo(118);
     startTimer();
     AUDIO.forceStart();
     musicReady.current = true;
-    // Landing clacks for the new board — AUDIO.forceStart() above built a
-    // fresh context, so schedule these after forceStart (not before)
-    // so the clack setTimeouts fire into a live ctx.
-    playClacks(6, 500, 500);
+    // Route through the shared helper so clacks + animation timing match
+    // every other fresh-board entry point.
+    dropFullBoard();
   };
 
   // Full-screen black fade overlay used to cover screen transitions.
