@@ -113,9 +113,16 @@ export const CSS = `
 .ov-sub{font-size:.62rem;letter-spacing:.1em;color:#443355;margin-top:-4px;}
 .ov-score{font-family:'Orbitron',sans-serif;font-size:.95rem;color:#cc88ff;letter-spacing:.1em;padding-left:.1em;margin-top:4px;}
 
-/* Main menu. No fade animation — just show the gradient + elements
-   immediately. Previous attempts at fade-in broke on certain WebView
-   builds and left the menu stuck invisible. */
+/* Main menu.
+   • `.menu` has the gradient.
+   • `.menu::before` is a black overlay that fades off on mount (CSS
+     animation, not JS state — the animation runs as soon as CSS sees
+     the element and can't get stuck).
+   • Children use `animation-fill-mode: backwards` so they're invisible
+     during the delay, fade in, then return to the default `opacity: 1`
+     after the animation — meaning even if the keyframes fail to run,
+     the elements still end up visible.
+*/
 .menu{
   position:fixed;inset:0;
   background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);
@@ -123,6 +130,31 @@ export const CSS = `
   z-index:700;padding:25vh 20px 32px;
 }
 .menu .pt{font-size:clamp(3rem,14vw,4.8rem);margin-bottom:15vh;}
+
+/* Black overlay that covers the gradient on mount, then fades off
+   automatically. No JS state — runs on first CSS paint. */
+.menu::before{
+  content:"";position:absolute;inset:0;background:#000;z-index:1;pointer-events:none;
+  animation:menuCoverOut 1.1s cubic-bezier(.45,0,.2,1) forwards;
+}
+.menu > *{position:relative;z-index:2;}
+@keyframes menuCoverOut{
+  0%  {opacity:1;}
+  15% {opacity:1;}
+  100%{opacity:0;}
+}
+
+/* Staggered element reveal. `backwards` = invisible during delay, then
+   fades in. After animation, returns to CSS default (visible). */
+.menu-stagger{animation:menuFadeIn .9s cubic-bezier(.32,.72,.35,1) backwards;}
+.menu-stagger:nth-of-type(1){animation-delay:.35s;}
+.menu-stagger:nth-of-type(2){animation-delay:.55s;}
+.menu-stagger:nth-of-type(3){animation-delay:.75s;}
+.menu-stagger:nth-of-type(4){animation-delay:.95s;}
+@keyframes menuFadeIn{
+  0%  {opacity:0;transform:translateY(10px);}
+  100%{opacity:1;transform:translateY(0);}
+}
 .menu .ps{font-size:.7rem;margin-top:8px;}
 .menu-best{font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:.14em;color:#8866cc;margin-top:16px;text-align:center;}
 .menu-best b{color:#ffcc44;text-shadow:0 0 12px rgba(255,200,68,.6);font-size:1rem;display:block;margin-top:10px;}
