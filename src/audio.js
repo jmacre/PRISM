@@ -672,9 +672,11 @@ export const AUDIO = (() => {
         // an "impact transient" character instead of a sustained tone,
         // so it doesn't read as squeaky or musical. Second layer adds
         // body without forming a chord with the first.
+        // Volumes tuned ~30% quieter than the rest of the SFX set since
+        // clacks fire in bursts during drops.
         const pitch = 0.85 + Math.random() * 0.3;
-        sn(700 * pitch, 0.05, 0.18, "triangle", t, 220 * pitch);
-        sn(440 * pitch, 0.06, 0.1, "triangle", t, 190 * pitch);
+        sn(700 * pitch, 0.05, 0.126, "triangle", t, 220 * pitch);
+        sn(440 * pitch, 0.06, 0.07, "triangle", t, 190 * pitch);
       }
       if (type === "over") {
         // Cinematic "game over" sting — shorter, punchier take:
