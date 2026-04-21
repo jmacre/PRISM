@@ -116,12 +116,18 @@ export const CSS = `
 /* Main menu */
 /* Title screen — PRISM logo sits ~25% from the top (75% from the
    bottom), with margin below it so PLAY still lands just past the
-   vertical midpoint. */
-.menu{position:fixed;inset:0;background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);display:flex;flex-direction:column;align-items:center;gap:40px;z-index:700;padding:25vh 20px 32px;}
+   vertical midpoint.
+
+   `.menu` starts out solid black and only switches to the purple radial
+   gradient once the ready state flips. Without this, the gradient
+   briefly flashes between the initial page load and the first paint of
+   the black ::before cover. */
+.menu{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;gap:40px;z-index:700;padding:25vh 20px 32px;}
+.menu-ready{background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);}
 .menu .pt{font-size:clamp(3rem,14vw,4.8rem);margin-bottom:15vh;}
 
 /* Title screen intro — two overlapping phases:
-   1. The pure-black "loading" cover fades to the gradient over ~1s.
+   1. The pure-black cover fades off, revealing the gradient.
    2. Each menu element softly fades up (tiny drift) on a stagger that
       begins partway through the background fade so both phases overlap
       rather than feeling sequential / plop-y. */
