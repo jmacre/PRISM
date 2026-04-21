@@ -627,17 +627,17 @@ export const AUDIO = (() => {
         sn(f, 0.05, 0.08, "sine", t, f * 1.3);
       }
       if (type === "over") {
-        // Cinematic "game over" sting — all tones below ~350 Hz:
-        //   • A low thump on the downbeat for weight.
-        //   • A long descending bass sweep (evokes a failing engine).
-        //   • Low D-minor interval (D + F) rising underneath.
-        //   • A final low drone that outlives everything else.
-        sn(80, 0.35, 0.55, "sine", t, 40); // opening thump
-        sn(180, 2.2, 0.42, "sine", t, 55); // long descending sweep
-        sn(90, 2.2, 0.38, "sine", t, 38); // parallel bass sweep
-        sn(294, 1.8, 0.22, "sine", t + 0.2); // D
-        sn(349, 1.8, 0.2, "sine", t + 0.35); // F
-        sn(60, 3.0, 0.28, "sine", t + 0.6, 45); // low drone tail
+        // Cinematic "game over" sting — shorter, punchier take:
+        //   • Opening low thump.
+        //   • Descending bass sweep (evokes a failing engine).
+        //   • Low D-minor interval (D + F) underneath.
+        //   • A short low drone tail.
+        sn(80, 0.3, 0.55, "sine", t, 40); // opening thump
+        sn(180, 1.1, 0.42, "sine", t, 55); // descending sweep
+        sn(90, 1.1, 0.38, "sine", t, 38); // parallel bass sweep
+        sn(294, 0.9, 0.22, "sine", t + 0.18); // D
+        sn(349, 0.9, 0.2, "sine", t + 0.3); // F
+        sn(60, 1.4, 0.28, "sine", t + 0.5, 45); // low drone tail
       }
     },
   };

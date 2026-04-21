@@ -401,7 +401,7 @@ export default function PrismGame() {
       // rings out clearly. stopMusic runs after the sting finishes.
       AUDIO.duckForGameOver();
       AUDIO.sfx("over");
-      setTimeout(() => AUDIO.stopMusic(), 3000);
+      setTimeout(() => AUDIO.stopMusic(), 2200);
       setBestInfo(saveBest(scoreRefForSave.current));
       bumpStats(scoreRefForSave.current, bestStreakRef.current);
       setGoReason(reason);
