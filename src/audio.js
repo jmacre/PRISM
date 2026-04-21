@@ -655,14 +655,14 @@ export const AUDIO = (() => {
         sn(f, 0.05, 0.08, "sine", t, f * 1.3);
       }
       if (type === "clack") {
-        // Short percussive "click" used when a gem lands during a drop.
-        // Randomize the fundamental slightly each call so a burst of
-        // clacks doesn't become a tonal chord — we want it to feel
-        // like physical pieces hitting a surface.
+        // Pool-ball click — sharp sawtooth attack that sweeps down fast
+        // (the bright "tock"), a mid triangle for body, and a short low
+        // sine thump for weight. Randomized pitch so a burst of clacks
+        // sounds like pieces hitting each other, not a tonal chord.
         const pitch = 0.85 + Math.random() * 0.3;
-        const f = 280 * pitch;
-        sn(f, 0.04, 0.11, "triangle", t, f * 0.55);
-        sn(f * 2.6, 0.03, 0.06, "triangle", t, f * 2);
+        sn(1250 * pitch, 0.035, 0.14, "sawtooth", t, 380 * pitch); // bright tock
+        sn(720 * pitch, 0.05, 0.11, "triangle", t, 260 * pitch); // body
+        sn(170 * pitch, 0.06, 0.07, "sine", t, 80 * pitch); // low thump
       }
       if (type === "over") {
         // Cinematic "game over" sting — shorter, punchier take:
