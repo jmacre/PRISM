@@ -831,6 +831,8 @@ export default function PrismGame() {
             for (let rr = 0; rr < ROWS; rr++) for (let cc = 0; cc < COLS; cc++) fresh.add(`${rr},${cc}`);
             setBoard(nb);
             setFreshGems(fresh);
+            // Landing clacks for the fresh double-prism board.
+            playClacks(6, 500, 500);
             pauseAwareTimeout(() => {
               setFreshGems(new Set());
               busyRef.current = false;
@@ -2063,6 +2065,10 @@ export default function PrismGame() {
     startTimer();
     AUDIO.forceStart();
     musicReady.current = true;
+    // Landing clacks for the new board — AUDIO.forceStart() above built a
+    // fresh context, so schedule these after forceStart (not before)
+    // so the clack setTimeouts fire into a live ctx.
+    playClacks(6, 500, 500);
   };
 
   // Full-screen black fade overlay used to cover screen transitions.
