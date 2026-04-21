@@ -655,14 +655,12 @@ export const AUDIO = (() => {
         sn(f, 0.05, 0.08, "sine", t, f * 1.3);
       }
       if (type === "clack") {
-        // Pool-ball click — sharp sawtooth attack that sweeps down fast
-        // (the bright "tock"), a mid triangle for body, and a short low
-        // sine thump for weight. Randomized pitch so a burst of clacks
-        // sounds like pieces hitting each other, not a tonal chord.
+        // Short "tock" — bright-ish triangle layers near the top of the
+        // master lowpass's passband, no low-end thud. Triangle (not
+        // square) to avoid the edgy choppy texture.
         const pitch = 0.85 + Math.random() * 0.3;
-        sn(1250 * pitch, 0.035, 0.14, "sawtooth", t, 380 * pitch); // bright tock
-        sn(720 * pitch, 0.05, 0.11, "triangle", t, 260 * pitch); // body
-        sn(170 * pitch, 0.06, 0.07, "sine", t, 80 * pitch); // low thump
+        sn(1350 * pitch, 0.04, 0.16, "triangle", t, 900 * pitch); // tock
+        sn(900 * pitch, 0.05, 0.1, "triangle", t, 500 * pitch); // body
       }
       if (type === "over") {
         // Cinematic "game over" sting — shorter, punchier take:

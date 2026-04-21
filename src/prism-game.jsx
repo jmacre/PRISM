@@ -262,11 +262,10 @@ export default function PrismGame() {
     setFreshGems(allFresh);
     freshStart.current = 0; // assigned on first draw frame for perfect sync
     setTimeout(() => setFreshGems(new Set()), 800);
-    // Full-board drop — gems land over roughly 500–900 ms (the animation
-    // has a row-based delay of up to 0.315 s plus a 0.55 s fall). Fire
-    // the clack burst in that landing window so it matches the visual
-    // impact of pieces settling.
-    playClacks(10, 400, 500);
+    // Full-board drop — fire a handful of clacks in the landing window.
+    // Count kept low (6) and spread over 500 ms so the burst reads as
+    // individual "tocks" rather than a machine-gun rattle.
+    playClacks(6, 500, 500);
   };
 
   // Schedule N clack SFX spread across `durMs` starting at `startMs`.
@@ -694,14 +693,13 @@ export default function PrismGame() {
         setFreshGems(fresh);
         if (fresh._hasPrism) AUDIO.sfx("prismSpawn");
 
-        // Clack burst timed to the landing window (drop animations run
-        // ~250–550 ms; schedule clacks inside the second half of that
-        // so the sound matches pieces settling, not falling). Count
-        // scales with how many pieces actually dropped.
+        // Clack burst timed to the landing window, sparse enough to
+        // read as individual hits. Count scales with how many gems
+        // actually moved, capped at 4 so big cascades don't spam.
         const dropCount = Object.keys(drops).length + fresh.size;
         if (dropCount > 0) {
-          const clacks = Math.min(8, Math.max(2, Math.ceil(dropCount / 3)));
-          playClacks(clacks, 250, 280);
+          const clacks = Math.min(4, Math.max(2, Math.ceil(dropCount / 6)));
+          playClacks(clacks, 300, 280);
         }
 
         // Try another cascade pass after the drop-in finishes animating.
