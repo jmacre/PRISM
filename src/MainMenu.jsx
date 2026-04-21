@@ -13,16 +13,30 @@ export function MainMenu({ best, onPlay, onOpenTutorial, showAbout, onOpenAbout,
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Give React one frame to mount the black background before we
-    // hammer the CPU with warmup work. Feels instant either way but
-    // avoids a visible hitch on very old devices.
-    const id = requestAnimationFrame(() => {
-      warmupRenderer();
-      // One more frame so the GPU uploads actually flush before we
-      // reveal — prevents the reveal itself from dropping frames.
-      requestAnimationFrame(() => setReady(true));
+    // Run warmup one frame after mount so the black background paints
+    // first. We then flip `ready` to trigger the fade-in.
+    //
+    // We use a setTimeout fallback (in addition to the RAF path) so that
+    // if the WebView ever skips a RAF callback — which has been seen on
+    // some Android builds — we still reveal the menu instead of getting
+    // stuck on black forever.
+    let done = false;
+    const flip = () => {
+      if (done) return;
+      done = true;
+      setReady(true);
+    };
+    const rafId = requestAnimationFrame(() => {
+      try {
+        warmupRenderer();
+      } catch {}
+      flip();
     });
-    return () => cancelAnimationFrame(id);
+    const safetyTimer = setTimeout(flip, 250);
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   return (
