@@ -262,15 +262,19 @@ export default function PrismGame() {
     setFreshGems(allFresh);
     freshStart.current = 0; // assigned on first draw frame for perfect sync
     setTimeout(() => setFreshGems(new Set()), 800);
-    playClacks(10, 500); // full-board drop — more clacks over a longer window
+    // Full-board drop — gems land over roughly 500–900 ms (the animation
+    // has a row-based delay of up to 0.315 s plus a 0.55 s fall). Fire
+    // the clack burst in that landing window so it matches the visual
+    // impact of pieces settling.
+    playClacks(10, 400, 500);
   };
 
-  // Schedule N clack SFX spread across a duration (ms) with slight random
-  // jitter so they don't feel mechanical. The `match` debounce on the
-  // audio side naturally thins out ones that land too close together.
-  const playClacks = (count, durMs) => {
+  // Schedule N clack SFX spread across `durMs` starting at `startMs`.
+  // Small random jitter so clacks don't feel mechanical. Used to punctuate
+  // the landing window of a drop animation — NOT the fall itself.
+  const playClacks = (count, durMs, startMs = 0) => {
     for (let i = 0; i < count; i++) {
-      const delay = (i * durMs) / Math.max(1, count) + Math.random() * 40;
+      const delay = startMs + (i * durMs) / Math.max(1, count) + Math.random() * 50;
       setTimeout(() => AUDIO.sfx("clack"), delay);
     }
   };
@@ -690,11 +694,14 @@ export default function PrismGame() {
         setFreshGems(fresh);
         if (fresh._hasPrism) AUDIO.sfx("prismSpawn");
 
-        // Clack sound per landing gem, scaled to the number of drops so a
-        // big cascade sounds busier than a 3-match.
+        // Clack burst timed to the landing window (drop animations run
+        // ~250–550 ms; schedule clacks inside the second half of that
+        // so the sound matches pieces settling, not falling). Count
+        // scales with how many pieces actually dropped.
         const dropCount = Object.keys(drops).length + fresh.size;
         if (dropCount > 0) {
-          playClacks(Math.min(8, Math.max(2, Math.ceil(dropCount / 3))), 350);
+          const clacks = Math.min(8, Math.max(2, Math.ceil(dropCount / 3)));
+          playClacks(clacks, 250, 280);
         }
 
         // Try another cascade pass after the drop-in finishes animating.
