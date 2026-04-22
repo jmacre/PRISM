@@ -577,13 +577,16 @@ export default function PrismGame() {
       });
 
       // One-shot multiplier tiles — consumed whenever they're cleared, no
-      // matter the cause. Each multiplier stacks.
+      // matter the cause. Each multiplier stacks, but the total is capped
+      // so a lucky vortex + multiple mult tiles can't runaway into the
+      // tens of millions (which made the best-score meaningless).
+      const MULT_CAP = 20;
       let cascadeMult = 1;
       for (const k of toClear) {
         const { r, c } = parseKey(k);
         const t = b[r]?.[c]?.type;
         if (t === "mult2" || t === "mult5" || t === "mult10") {
-          cascadeMult *= t === "mult10" ? 10 : t === "mult5" ? 5 : 2;
+          cascadeMult = Math.min(MULT_CAP, cascadeMult * (t === "mult10" ? 10 : t === "mult5" ? 5 : 2));
           AUDIO.sfx(t);
           setBoardFlash(t);
           setTimeout(() => setBoardFlash(null), 600);
