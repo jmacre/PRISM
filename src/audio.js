@@ -77,47 +77,42 @@ export const AUDIO = (() => {
       _lastSfxTime = 0;
       _lastSfx = "";
 
-      // ── Signal chain: sources → master → compressor → lowpass → destination
+      // ── Signal chain
       //
-      //   master      gain trim — what suspendAll fades
-      //   compressor  tames peaks from overlapping SFX (8 ms attack,
-      //               350 ms release — slower release than before to
-      //               stop it from pumping during cascades)
-      //   lowpass     gentle roll-off above ~3.2 kHz to tame the harsh
-      //               phone-speaker sizzle that made some SFX painful
+      //   musicBus →                    master → compressor → destination
+      //   sfxBus   → lowpass @1.5kHz ──┘
+      //
+      // Lowpass now sits only on the SFX path so it tames the harsh
+      // phone-speaker sizzle on zaps/bombs/etc. WITHOUT gutting the
+      // music's high frequencies (the old "everything through lowpass"
+      // setup made the music sound like it was underwater).
+      // The compressor stays on master to catch combined peaks.
 
       const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -22;
-      comp.ratio.value = 8;
-      comp.attack.value = 0.008;
-      comp.release.value = 0.35;
+      comp.threshold.value = -18;
+      comp.ratio.value = 4;
+      comp.attack.value = 0.01;
+      comp.release.value = 0.4;
 
-      // Aggressive master lowpass — anything above ~1.5 kHz is aggressively
-      // rolled off. Phone speakers exaggerate the 2-5 kHz band, and every
-      // "painful high-pitched" SFX complaint traces back to content up
-      // there. With this filter the harshest SFX can't get harsh.
-      const tone = ctx.createBiquadFilter();
-      tone.type = "lowpass";
-      tone.frequency.value = 1500;
-      tone.Q.value = 0.9;
+      const sfxTone = ctx.createBiquadFilter();
+      sfxTone.type = "lowpass";
+      sfxTone.frequency.value = 1500;
+      sfxTone.Q.value = 0.9;
 
-      // Master is the global mute point (suspend/pause fade it). Music and
-      // SFX have their own pre-master buses so we can duck one without
-      // the other.
       master = ctx.createGain();
       master.gain.value = 1.0;
 
       musicBus = ctx.createGain();
-      musicBus.gain.value = 0.32;
+      musicBus.gain.value = 0.5; // music hits master directly, no pre-filter
       musicBus.connect(master);
 
       sfxBus = ctx.createGain();
-      sfxBus.gain.value = 0.15;
-      sfxBus.connect(master);
+      sfxBus.gain.value = 0.22;
+      sfxBus.connect(sfxTone);
+      sfxTone.connect(master);
 
       master.connect(comp);
-      comp.connect(tone);
-      tone.connect(ctx.destination);
+      comp.connect(ctx.destination);
 
       _activeOsc = 0;
       verb = null; // no convolver needed now that music is pre-rendered
