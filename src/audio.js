@@ -36,29 +36,19 @@ export const AUDIO = (() => {
   // the quiet crackle. Keep well below that ceiling.
   const MAX_POLY = 12;
 
-  // Starting playback rate for a chill opening; setTempo pushes this up
-  // as the player's move count grows.
-  const MUSIC_START_RATE = 0.75;
+  // The music <audio> element. NOT routed through the Web Audio graph —
+  // plain element playback, no effects, no playback-rate manipulation.
+  // Web Audio processing (createMediaElementSource + compressor/filter)
+  // was introducing scratch/muffle artifacts, so we keep music simple
+  // and apply level changes via element.volume directly.
+  const MUSIC_VOL = 0.5;
 
-  // Lazily wire the music <audio> element into the Web Audio graph. Runs
-  // once per ctx rebuild — createMediaElementSource can only be called
-  // once per element per context, so we create a fresh element here too.
   function _buildMusic() {
     try {
-      if (!ctx || !musicBus) return;
       musicEl = new Audio("music.wav");
       musicEl.loop = true;
       musicEl.preload = "auto";
-      musicEl.crossOrigin = "anonymous";
-      musicEl.playbackRate = MUSIC_START_RATE;
-      // Disable pitch preservation so slowed-down playback sounds like
-      // a tape deck (just pitched down) rather than using the browser's
-      // time-stretch algorithm, which introduces the scratchy graininess.
-      musicEl.preservesPitch = false;
-      musicEl.mozPreservesPitch = false;
-      musicEl.webkitPreservesPitch = false;
-      musicSrcNode = ctx.createMediaElementSource(musicEl);
-      musicSrcNode.connect(musicBus);
+      musicEl.volume = MUSIC_VOL;
     } catch {}
   }
 
@@ -81,15 +71,13 @@ export const AUDIO = (() => {
       _lastSfxTime = 0;
       _lastSfx = "";
 
-      // ── Signal chain
+      // ── Signal chain — SFX only.
       //
-      //   musicBus ──────────────────────────────── master → destination
-      //   sfxBus   → lowpass @1.5kHz → compressor ─┘
+      //   sfxBus → lowpass(1.5kHz) → compressor → master → destination
       //
-      // Music goes straight through — no filtering, no compression —
-      // so the mastered WAV sounds exactly like it does on disk.
-      // SFX get their own chain: a lowpass to tame phone-speaker sizzle
-      // and a compressor to catch peaks when many overlap.
+      // Music plays through the <audio> element directly (element.volume),
+      // NOT through Web Audio, because routing it through nodes was
+      // introducing scratchy / muffled artifacts on Android WebView.
 
       const sfxComp = ctx.createDynamicsCompressor();
       sfxComp.threshold.value = -18;
@@ -104,10 +92,6 @@ export const AUDIO = (() => {
 
       master = ctx.createGain();
       master.gain.value = 1.0;
-
-      musicBus = ctx.createGain();
-      musicBus.gain.value = 0.5;
-      musicBus.connect(master);
 
       sfxBus = ctx.createGain();
       sfxBus.gain.value = 0.22;
@@ -164,17 +148,18 @@ export const AUDIO = (() => {
     },
 
     // Game-over variant: fade MUSIC out over ~2 seconds while SFX keeps
-    // playing (it's on its own bus), so the "over" sting rings cleanly.
+    // playing, so the "over" sting rings cleanly. Music level is driven
+    // via element.volume (not Web Audio) so we manually ramp it here.
     duckForGameOver() {
-      try {
-        if (ctx && musicBus) {
-          const t = ctx.currentTime;
-          musicBus.gain.cancelScheduledValues(t);
-          musicBus.gain.setValueAtTime(musicBus.gain.value, t);
-          musicBus.gain.linearRampToValueAtTime(0.0001, t + 1.8);
-        }
-      } catch {}
-      // Stop the element after the fade so it doesn't keep decoding.
+      if (!musicEl) return;
+      const startVol = musicEl.volume;
+      const steps = 30;
+      const dt = 1800 / steps;
+      for (let i = 1; i <= steps; i++) {
+        setTimeout(() => {
+          try { if (musicEl) musicEl.volume = startVol * (1 - i / steps); } catch {}
+        }, i * dt);
+      }
       setTimeout(() => { try { musicEl?.pause(); } catch {} }, 2000);
     },
 
@@ -208,24 +193,25 @@ export const AUDIO = (() => {
       } catch {}
     },
 
-    // Maps the game's notional BPM (118 at move 0 → ~155 at high move
-    // counts) to playbackRate 0.75 → 1.25. That gives a chill start
-    // (3/4 speed) that accelerates as the timer tightens.
-    setTempo(bpm) {
-      if (!musicEl) return;
-      const frac = Math.max(0, Math.min(1, (bpm - 118) / 37));
-      musicEl.playbackRate = 0.75 + frac * 0.5;
-    },
+    // No-op now — the pre-rendered music plays at its natural speed.
+    // Kept so the existing timer-tick caller doesn't break.
+    setTempo() {},
 
     get musicMuted() { return _musicMuted; },
     get sfxMuted()   { return _sfxMuted; },
 
     startMusic() {
-      if (_musicMuted || !ctx) return;
-      const t = ctx.currentTime;
-      master.gain.cancelScheduledValues(t);
-      master.gain.setValueAtTime(0.0001, t);
-      master.gain.linearRampToValueAtTime(1.0, t + 0.15);
+      if (_musicMuted) return;
+      if (ctx && master) {
+        const t = ctx.currentTime;
+        master.gain.cancelScheduledValues(t);
+        master.gain.setValueAtTime(0.0001, t);
+        master.gain.linearRampToValueAtTime(1.0, t + 0.15);
+      }
+      if (!musicEl) _buildMusic();
+      if (musicEl) {
+        try { musicEl.volume = MUSIC_VOL; } catch {}
+      }
       _playMusic();
     },
 
@@ -241,49 +227,37 @@ export const AUDIO = (() => {
         try { ctx.close(); } catch {}
         ctx = null;
         master = null;
-        musicBus = null;
         sfxBus = null;
         verb = null;
-        musicEl = null;
-        musicSrcNode = null;
         _activeOsc = 0;
       }
+      musicEl = null;
     },
 
-    // Start fresh — guarantees a clean slate for a new run. Only rebuilds
-    // the AudioContext if it's missing or closed. Always rebuilds the ctx
-    // when needed even if music is muted, because SFX still need it.
+    // Start fresh — guarantees a clean slate for a new run. Rebuilds the
+    // AudioContext (for SFX) and a fresh music element when needed.
     forceStart() {
       _suspendId++;
       if (!ctx || ctx.state === "closed") {
         _buildCtx();
       }
-      if (!ctx) return;
-      try {
-        if (ctx.state === "suspended") ctx.resume();
-      } catch {}
-      // Snap master + music bus back up (they may have been faded by a
-      // pause or a previous game-over duck).
-      try {
-        if (master) {
-          const t = ctx.currentTime;
-          master.gain.cancelScheduledValues(t);
-          master.gain.setValueAtTime(master.gain.value, t);
-          master.gain.linearRampToValueAtTime(1.0, t + 0.15);
-        }
-        if (musicBus) {
-          const t = ctx.currentTime;
-          musicBus.gain.cancelScheduledValues(t);
-          musicBus.gain.setValueAtTime(musicBus.gain.value, t);
-          musicBus.gain.linearRampToValueAtTime(0.32, t + 0.15);
-        }
-      } catch {}
-      // Restart the track from the top and reset the playback rate so
-      // each new run starts chill.
+      if (ctx) {
+        try { if (ctx.state === "suspended") ctx.resume(); } catch {}
+        try {
+          if (master) {
+            const t = ctx.currentTime;
+            master.gain.cancelScheduledValues(t);
+            master.gain.setValueAtTime(master.gain.value, t);
+            master.gain.linearRampToValueAtTime(1.0, t + 0.15);
+          }
+        } catch {}
+      }
+      // Rebuild the music element if needed, then restart from the top.
+      if (!musicEl) _buildMusic();
       if (!_musicMuted && musicEl) {
         try {
           musicEl.currentTime = 0;
-          musicEl.playbackRate = MUSIC_START_RATE;
+          musicEl.volume = MUSIC_VOL;
         } catch {}
         _playMusic();
       }
