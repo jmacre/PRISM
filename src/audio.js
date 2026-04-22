@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // AUDIO
-// Web Audio engine for both the sequencer (BASS + MELS pattern) and SFX.
-// Exposed as a single-instance module; nothing React here.
+// Web Audio engine. SFX are synthesized with OscillatorNodes; music is a
+// pre-rendered webm file played through an HTMLAudioElement routed into
+// the graph via createMediaElementSource so we can still duck/fade it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const AUDIO = (() => {
@@ -13,7 +14,10 @@ export const AUDIO = (() => {
   let sfxBus = null;
   let verb = null;
 
-  let running = false;
+  // HTMLAudioElement + its MediaElementSource. Looped webm clip.
+  let musicEl = null;
+  let musicSrcNode = null;
+
   let _musicMuted = false;
   let _sfxMuted = false;
   let _activeOsc = 0;
@@ -25,40 +29,29 @@ export const AUDIO = (() => {
   let _lastHiTime = 0;
   let _suspendId = 0;
 
-  let schedTimer = null;
-  let nextNote = 0;
-  let beat = 0;
-
   const BASE_BPM = 118;
-  let _bpm = BASE_BPM;
-  let _s8 = 60 / _bpm / 2;
-
-  // Lookahead window for the scheduler + how often we wake up. Tuned wider
-  // (500 ms / 30 ms) than typical so occasional main-thread stalls during
-  // React cascades don't cause audio underruns.
-  const AHEAD = 0.5;
-  const LOOK = 30;
 
   // Global polyphony cap — on Android Chromium the audio renderer chokes
   // above ~14 simultaneous oscillators with gain automation, producing
   // the quiet crackle. Keep well below that ceiling.
   const MAX_POLY = 12;
 
-  // Bass line (32 sixteenth-notes) and 8 looping melodies. `0` means rest.
-  const BASS = [
-    110, 0, 0, 0, 0, 0, 98, 0, 110, 0, 0, 82, 0, 0, 73, 0, 110, 0, 0, 0, 65, 0, 82, 0, 98, 0, 0, 0, 82, 0, 73, 82,
-  ];
-
-  const MELS = [
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [220, 0, 262, 0, 330, 0, 392, 0, 440, 0, 392, 0, 330, 0, 262, 0],
-    [330, 0, 294, 0, 262, 0, 220, 0, 196, 0, 220, 0, 262, 0, 294, 0],
-    [440, 0, 523, 0, 587, 0, 659, 0, 587, 0, 523, 0, 440, 0, 392, 0],
-    [330, 0, 0, 0, 440, 0, 0, 0, 392, 0, 330, 0, 0, 0, 262, 0],
-    [0, 0, 196, 0, 0, 0, 220, 0, 0, 0, 196, 0, 220, 0, 0, 0],
-    [165, 0, 196, 0, 220, 0, 196, 0, 165, 0, 196, 0, 220, 0, 165, 0],
-    [440, 0, 523, 0, 659, 0, 784, 0, 659, 0, 523, 0, 440, 0, 523, 0],
-  ];
+  // Lazily wire the music <audio> element into the Web Audio graph. Runs
+  // once per ctx rebuild — createMediaElementSource can only be called
+  // once per element per context, so we create a fresh element here too.
+  function _buildMusic() {
+    try {
+      if (!ctx || !musicBus) return;
+      musicEl = new Audio("music.webm");
+      musicEl.loop = true;
+      musicEl.preload = "auto";
+      musicEl.crossOrigin = "anonymous";
+      // Android WebView prefers the MediaElementSource route for any
+      // volume automation to track reliably.
+      musicSrcNode = ctx.createMediaElementSource(musicEl);
+      musicSrcNode.connect(musicBus);
+    } catch {}
+  }
 
   function _buildCtx() {
     try {
@@ -68,6 +61,16 @@ export const AUDIO = (() => {
         } catch {}
       }
       ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+      // Reset the timestamp trackers — they're in ctx.currentTime units,
+      // and ctx.currentTime resets to 0 on a new context. Without this,
+      // `now2 - _lastHiTime` goes negative on the new context (because
+      // _lastHiTime holds the OLD ctx's time), which trips the `< 0.55`
+      // suppression check and kills every LO-priority SFX (match chime,
+      // cascade chirp) for the entire second game session.
+      _lastHiTime = 0;
+      _lastSfxTime = 0;
+      _lastSfx = "";
 
       // ── Signal chain: sources → master → compressor → lowpass → destination
       //
@@ -111,28 +114,11 @@ export const AUDIO = (() => {
       comp.connect(tone);
       tone.connect(ctx.destination);
 
-      // Tiny reverb — 0.6 s instead of 2.4 s. The convolver was running
-      // continuously during music playback and was the biggest baseline
-      // CPU cost on the audio thread (4× smaller buffer = ~4× cheaper
-      // per audio block). Shorter tail also means less ringing on phones.
-      const len = Math.floor(ctx.sampleRate * 0.6);
-      const buf = ctx.createBuffer(2, len, ctx.sampleRate);
-      for (let c = 0; c < 2; c++) {
-        const d = buf.getChannelData(c);
-        for (let i = 0; i < len; i++) {
-          d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
-        }
-      }
-      verb = ctx.createConvolver();
-      verb.buffer = buf;
-
-      const vg = ctx.createGain();
-      vg.gain.value = 0.15;
-      verb.connect(vg);
-      vg.connect(musicBus);
-
-      running = false;
       _activeOsc = 0;
+      verb = null; // no convolver needed now that music is pre-rendered
+
+      // Wire the music <audio> element into the freshly built graph.
+      _buildMusic();
     } catch {}
   }
 
@@ -143,109 +129,27 @@ export const AUDIO = (() => {
 
   const resume = () => ctx?.state === "suspended" && ctx.resume();
 
-  function playNote(freq, t, dur, type, vol, rv = 0) {
-    if (!freq || !ctx || _activeOsc > MAX_POLY) return;
-    _activeOsc++;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.onended = () => {
-      _activeOsc--;
-    };
-    o.type = type;
-    o.frequency.value = freq;
-    o.connect(g);
-    g.connect(musicBus);
-    if (rv && verb) {
-      const rg = ctx.createGain();
-      rg.gain.value = rv;
-      o.connect(rg);
-      rg.connect(verb);
-    }
-    // 15 ms attack / 20 ms release — longer than the old 8 ms cuts down
-    // on zipper noise when many notes overlap.
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.015);
-    g.gain.setValueAtTime(vol, t + Math.max(0.015, dur * 0.6));
-    g.gain.linearRampToValueAtTime(0.0001, t + dur);
-    o.start(t);
-    o.stop(t + dur + 0.05);
-  }
-
-  function kick(t) {
-    if (!ctx || _activeOsc > MAX_POLY) return;
-    _activeOsc++;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.onended = () => {
-      _activeOsc--;
-    };
-    o.type = "sine";
-    o.frequency.setValueAtTime(130, t);
-    o.frequency.linearRampToValueAtTime(38, t + 0.26);
-    o.connect(g);
-    g.connect(musicBus);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.35, t + 0.01);
-    g.gain.linearRampToValueAtTime(0.0001, t + 0.3);
-    o.start(t);
-    o.stop(t + 0.35);
-  }
-
-  function schedule() {
-    if (!running || !ctx) return;
-    // Phrase order across 8 melody blocks (0..7).
-    const ORDER = [0, 1, 2, 3, 4, 5, 6, 7, 0, 2, 1, 3, 5, 4, 6, 7];
-
-    // If the main thread stalled long enough that we'd be firing notes
-    // meaningfully in the past, skip ahead rather than burst-fire a
-    // catchup pile. Piled-up notes are the biggest single source of the
-    // "crackle during cascades" symptom — many oscillators starting in
-    // the same audio block overflow the audio thread's capacity.
-    const now = ctx.currentTime;
-    if (nextNote < now - _s8) {
-      const behind = now - nextNote;
-      const skip = Math.ceil(behind / _s8);
-      nextNote += skip * _s8;
-      beat += skip;
-    }
-
-    while (nextNote < ctx.currentTime + AHEAD) {
-      const t = nextNote;
-      const s8 = beat % 256;
-      const phase16 = Math.floor(s8 / 16);
-      const phase = ORDER[phase16];
-      const sip = s8 % 16;
-      const bSec = phase16 >= 8;
-
-      if (s8 % 8 === 0) kick(t);
-      if (BASS[s8 % 32]) {
-        playNote(BASS[s8 % 32], t, _s8 * 1.65, "sine", bSec ? 0.3 : 0.26);
-      }
-      const mel = MELS[phase];
-      if (mel[sip]) {
-        playNote(mel[sip], t, _s8 * 0.88, "triangle", 0.17, 0.38);
-      }
-      // Octave accents in the last two phrases.
-      if ((phase === 3 || phase === 7) && mel[sip] && sip % 4 === 2) {
-        playNote(mel[sip] * 2, t, _s8 * 0.5, "sine", 0.05, 0.6);
-      }
-      nextNote += _s8;
-      beat++;
-    }
-    schedTimer = setTimeout(schedule, LOOK);
+  // Kick the music element into playback. Wrapped so we can `.catch` the
+  // AbortError / NotAllowedError that fires when the user hasn't tapped
+  // yet or when play/pause race each other on Android WebView.
+  function _playMusic() {
+    if (!musicEl || _musicMuted) return;
+    try {
+      const p = musicEl.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch {}
   }
 
   return {
     init,
     resume,
 
-    // In-game pause. Stops the scheduler and fades out, but keeps the
-    // AudioContext alive. Cycling the context via ctx.suspend()/resume()
-    // causes a click on Android because scheduled-but-not-yet-played
-    // oscillators in the lookahead buffer fire all at once on resume.
+    // In-game pause. Pauses the music file and fades master out. The
+    // AudioContext stays alive so SFX still work if needed, and so
+    // resumeFromPause doesn't have to cycle ctx.suspend()/ctx.resume()
+    // (which clicks on Android).
     pauseMusic() {
-      running = false;
-      clearTimeout(schedTimer);
+      try { musicEl?.pause(); } catch {}
       try {
         if (ctx && master) {
           const t = ctx.currentTime;
@@ -256,12 +160,9 @@ export const AUDIO = (() => {
       } catch {}
     },
 
-    // Game-over variant: stop the music scheduler and fade MUSIC out
-    // over ~2 seconds. SFX stays audible (it's on its own bus) so the
-    // "over" sting can ring out cleanly without being buried by the mix.
+    // Game-over variant: fade MUSIC out over ~2 seconds while SFX keeps
+    // playing (it's on its own bus), so the "over" sting rings cleanly.
     duckForGameOver() {
-      running = false;
-      clearTimeout(schedTimer);
       try {
         if (ctx && musicBus) {
           const t = ctx.currentTime;
@@ -270,15 +171,15 @@ export const AUDIO = (() => {
           musicBus.gain.linearRampToValueAtTime(0.0001, t + 1.8);
         }
       } catch {}
+      // Stop the element after the fade so it doesn't keep decoding.
+      setTimeout(() => { try { musicEl?.pause(); } catch {} }, 2000);
     },
 
     // Full suspend — used when the app actually goes to the background
-    // (tab hidden / recent-apps button). Fades, then calls ctx.suspend()
-    // so Android stops processing audio entirely. Produces a small click
-    // on next resume, but that's rare compared to in-game pause cycles.
+    // (tab hidden / recent-apps button). Fades, pauses the music, then
+    // suspends the ctx so Android stops processing audio entirely.
     suspendAll() {
-      running = false;
-      clearTimeout(schedTimer);
+      try { musicEl?.pause(); } catch {}
       try {
         if (ctx && master) {
           const t = ctx.currentTime;
@@ -299,107 +200,90 @@ export const AUDIO = (() => {
       try {
         if (ctx) {
           if (ctx.state === "suspended") ctx.resume();
-          // master now holds the global level (1.0 = unity) — the
-          // music and SFX level trims live on their own buses.
           if (master) master.gain.setValueAtTime(1.0, ctx.currentTime);
         }
       } catch {}
     },
 
+    // Kept for API compatibility. Tempo no longer affects the music
+    // (pre-rendered file), but we still map BPM → playbackRate so the
+    // end-game acceleration still speeds up the track slightly.
     setTempo(bpm) {
-      _bpm = bpm;
-      _s8 = 60 / _bpm / 2;
+      if (musicEl) {
+        musicEl.playbackRate = Math.max(0.8, Math.min(1.5, bpm / BASE_BPM));
+      }
     },
 
-    get musicMuted() {
-      return _musicMuted;
-    },
-    get sfxMuted() {
-      return _sfxMuted;
-    },
+    get musicMuted() { return _musicMuted; },
+    get sfxMuted()   { return _sfxMuted; },
 
     startMusic() {
-      if (running || _musicMuted || !ctx) return;
-      running = true;
-      beat = 0;
-      nextNote = ctx.currentTime + 0.06;
+      if (_musicMuted || !ctx) return;
       const t = ctx.currentTime;
       master.gain.cancelScheduledValues(t);
       master.gain.setValueAtTime(0.0001, t);
-      // Ramp master to unity (1.0). The music level is carried by
-      // musicBus (at 0.32) behind master, not by master itself.
       master.gain.linearRampToValueAtTime(1.0, t + 0.15);
-      schedule();
+      _playMusic();
     },
 
     stopMusic() {
-      running = false;
-      clearTimeout(schedTimer);
-      beat = 0;
       _suspendId++;
+      try {
+        if (musicEl) {
+          musicEl.pause();
+          musicEl.currentTime = 0;
+        }
+      } catch {}
       if (ctx) {
-        try {
-          ctx.close();
-        } catch {}
+        try { ctx.close(); } catch {}
         ctx = null;
         master = null;
         musicBus = null;
         sfxBus = null;
         verb = null;
+        musicEl = null;
+        musicSrcNode = null;
         _activeOsc = 0;
       }
     },
 
-    // Start fresh from beat 0. Used when the player starts a new run —
-    // guarantees a clean slate. Only rebuilds the AudioContext if it's
-    // missing or closed; otherwise just reuses the existing one. Avoids
-    // ~100ms of unnecessary setup on every new-game button press.
-    //
-    // IMPORTANT: always rebuild the ctx if it's missing, even when music
-    // is muted. SFX still need a live ctx to play through, and an earlier
-    // stopMusic() may have closed it.
+    // Start fresh — guarantees a clean slate for a new run. Only rebuilds
+    // the AudioContext if it's missing or closed. Always rebuilds the ctx
+    // when needed even if music is muted, because SFX still need it.
     forceStart() {
       _suspendId++;
-      running = false;
-      clearTimeout(schedTimer);
       if (!ctx || ctx.state === "closed") {
         _buildCtx();
       }
-      if (_musicMuted) return;
-      if (ctx) {
-        // Resume if suspended so the context is audible.
-        try {
-          if (ctx.state === "suspended") ctx.resume();
-        } catch {}
-        // Snap master + music bus gains back up (they may have been
-        // faded out by a pause or a previous game-over duck).
-        try {
-          if (master) {
-            const t = ctx.currentTime;
-            master.gain.cancelScheduledValues(t);
-            master.gain.setValueAtTime(master.gain.value, t);
-            master.gain.linearRampToValueAtTime(1.0, t + 0.15);
-          }
-          if (musicBus) {
-            const t = ctx.currentTime;
-            musicBus.gain.cancelScheduledValues(t);
-            musicBus.gain.setValueAtTime(musicBus.gain.value, t);
-            musicBus.gain.linearRampToValueAtTime(0.32, t + 0.15);
-          }
-        } catch {}
-        running = true;
-        beat = 0;
-        nextNote = ctx.currentTime + 0.1;
-        schedule();
+      if (!ctx) return;
+      try {
+        if (ctx.state === "suspended") ctx.resume();
+      } catch {}
+      // Snap master + music bus back up (they may have been faded by a
+      // pause or a previous game-over duck).
+      try {
+        if (master) {
+          const t = ctx.currentTime;
+          master.gain.cancelScheduledValues(t);
+          master.gain.setValueAtTime(master.gain.value, t);
+          master.gain.linearRampToValueAtTime(1.0, t + 0.15);
+        }
+        if (musicBus) {
+          const t = ctx.currentTime;
+          musicBus.gain.cancelScheduledValues(t);
+          musicBus.gain.setValueAtTime(musicBus.gain.value, t);
+          musicBus.gain.linearRampToValueAtTime(0.32, t + 0.15);
+        }
+      } catch {}
+      // Restart the music track from the top on a new run.
+      if (!_musicMuted && musicEl) {
+        try { musicEl.currentTime = 0; } catch {}
+        _playMusic();
       }
     },
 
-    // Resume from pause — keeps beat position, unmutes and restarts the
-    // scheduler. We wait for ctx.resume()'s Promise to settle before
-    // touching the gain, otherwise Android's AudioContext sometimes
-    // produces a loud click from scheduling values against an unstable
-    // context. We also ramp UP from whatever gain the fade left us at
-    // (rather than snapping to 0.0001 first) to avoid any discontinuity.
+    // Resume from pause — wait for ctx.resume()'s Promise to settle
+    // before ramping the gain, otherwise Android's AudioContext clicks.
     resumeFromPause() {
       if (!ctx || _musicMuted) return;
       const finish = () => {
@@ -411,11 +295,7 @@ export const AUDIO = (() => {
             master.gain.linearRampToValueAtTime(1.0, t + 0.2);
           }
         } catch {}
-        if (!running && ctx) {
-          running = true;
-          nextNote = ctx.currentTime + 0.2;
-          schedule();
-        }
+        _playMusic();
       };
       try {
         if (ctx.state === "suspended") {
@@ -432,15 +312,10 @@ export const AUDIO = (() => {
 
     setMusicMuted(v) {
       _musicMuted = v;
-      if (v) {
-        running = false;
-        clearTimeout(schedTimer);
-      } else if (ctx && !running) {
-        running = true;
-        beat = 0;
-        nextNote = ctx.currentTime + 0.06;
-        schedule();
-      }
+      try {
+        if (v) musicEl?.pause();
+        else if (ctx) _playMusic();
+      } catch {}
     },
 
     setSfxMuted(v) {
