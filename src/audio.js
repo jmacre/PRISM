@@ -36,16 +36,21 @@ export const AUDIO = (() => {
   // the quiet crackle. Keep well below that ceiling.
   const MAX_POLY = 12;
 
+  // Starting playback rate for a chill opening; setTempo pushes this up
+  // as the player's move count grows.
+  const MUSIC_START_RATE = 0.75;
+
   // Lazily wire the music <audio> element into the Web Audio graph. Runs
   // once per ctx rebuild — createMediaElementSource can only be called
   // once per element per context, so we create a fresh element here too.
   function _buildMusic() {
     try {
       if (!ctx || !musicBus) return;
-      musicEl = new Audio("music.webm");
+      musicEl = new Audio("music.wav");
       musicEl.loop = true;
       musicEl.preload = "auto";
       musicEl.crossOrigin = "anonymous";
+      musicEl.playbackRate = MUSIC_START_RATE;
       // Android WebView prefers the MediaElementSource route for any
       // volume automation to track reliably.
       musicSrcNode = ctx.createMediaElementSource(musicEl);
@@ -205,13 +210,13 @@ export const AUDIO = (() => {
       } catch {}
     },
 
-    // Kept for API compatibility. Tempo no longer affects the music
-    // (pre-rendered file), but we still map BPM → playbackRate so the
-    // end-game acceleration still speeds up the track slightly.
+    // Maps the game's notional BPM (118 at move 0 → ~155 at high move
+    // counts) to playbackRate 0.75 → 1.25. That gives a chill start
+    // (3/4 speed) that accelerates as the timer tightens.
     setTempo(bpm) {
-      if (musicEl) {
-        musicEl.playbackRate = Math.max(0.8, Math.min(1.5, bpm / BASE_BPM));
-      }
+      if (!musicEl) return;
+      const frac = Math.max(0, Math.min(1, (bpm - 118) / 37));
+      musicEl.playbackRate = 0.75 + frac * 0.5;
     },
 
     get musicMuted() { return _musicMuted; },
@@ -275,9 +280,13 @@ export const AUDIO = (() => {
           musicBus.gain.linearRampToValueAtTime(0.32, t + 0.15);
         }
       } catch {}
-      // Restart the music track from the top on a new run.
+      // Restart the track from the top and reset the playback rate so
+      // each new run starts chill.
       if (!_musicMuted && musicEl) {
-        try { musicEl.currentTime = 0; } catch {}
+        try {
+          musicEl.currentTime = 0;
+          musicEl.playbackRate = MUSIC_START_RATE;
+        } catch {}
         _playMusic();
       }
     },
