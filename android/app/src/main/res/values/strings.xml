@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">PRISM</string>
     <string name="title_activity_main">PRISM</string>
-    <string name="package_name">com.prism.game</string>
-    <string name="custom_url_scheme">com.prism.game</string>
+    <string name="package_name">com.jmgames.prism</string>
+    <string name="custom_url_scheme">com.jmgames.prism</string>
 </resources>

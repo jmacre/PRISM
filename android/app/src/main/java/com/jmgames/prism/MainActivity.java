@@ -1,4 +1,4 @@
-package com.prism.game;
+package com.jmgames.prism;
 
 import com.getcapacitor.BridgeActivity;
 

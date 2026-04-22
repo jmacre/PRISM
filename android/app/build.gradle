@@ -12,10 +12,10 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace "com.prism.game"
+    namespace "com.jmgames.prism"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.prism.game"
+        applicationId "com.jmgames.prism"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.prism.game',
+  appId: 'com.jmgames.prism',
   appName: 'PRISM',
   webDir: 'dist',
   server: {
