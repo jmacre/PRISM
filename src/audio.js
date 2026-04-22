@@ -51,8 +51,12 @@ export const AUDIO = (() => {
       musicEl.preload = "auto";
       musicEl.crossOrigin = "anonymous";
       musicEl.playbackRate = MUSIC_START_RATE;
-      // Android WebView prefers the MediaElementSource route for any
-      // volume automation to track reliably.
+      // Disable pitch preservation so slowed-down playback sounds like
+      // a tape deck (just pitched down) rather than using the browser's
+      // time-stretch algorithm, which introduces the scratchy graininess.
+      musicEl.preservesPitch = false;
+      musicEl.mozPreservesPitch = false;
+      musicEl.webkitPreservesPitch = false;
       musicSrcNode = ctx.createMediaElementSource(musicEl);
       musicSrcNode.connect(musicBus);
     } catch {}
@@ -79,20 +83,19 @@ export const AUDIO = (() => {
 
       // ── Signal chain
       //
-      //   musicBus →                    master → compressor → destination
-      //   sfxBus   → lowpass @1.5kHz ──┘
+      //   musicBus ──────────────────────────────── master → destination
+      //   sfxBus   → lowpass @1.5kHz → compressor ─┘
       //
-      // Lowpass now sits only on the SFX path so it tames the harsh
-      // phone-speaker sizzle on zaps/bombs/etc. WITHOUT gutting the
-      // music's high frequencies (the old "everything through lowpass"
-      // setup made the music sound like it was underwater).
-      // The compressor stays on master to catch combined peaks.
+      // Music goes straight through — no filtering, no compression —
+      // so the mastered WAV sounds exactly like it does on disk.
+      // SFX get their own chain: a lowpass to tame phone-speaker sizzle
+      // and a compressor to catch peaks when many overlap.
 
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -18;
-      comp.ratio.value = 4;
-      comp.attack.value = 0.01;
-      comp.release.value = 0.4;
+      const sfxComp = ctx.createDynamicsCompressor();
+      sfxComp.threshold.value = -18;
+      sfxComp.ratio.value = 4;
+      sfxComp.attack.value = 0.01;
+      sfxComp.release.value = 0.4;
 
       const sfxTone = ctx.createBiquadFilter();
       sfxTone.type = "lowpass";
@@ -103,16 +106,16 @@ export const AUDIO = (() => {
       master.gain.value = 1.0;
 
       musicBus = ctx.createGain();
-      musicBus.gain.value = 0.5; // music hits master directly, no pre-filter
+      musicBus.gain.value = 0.5;
       musicBus.connect(master);
 
       sfxBus = ctx.createGain();
       sfxBus.gain.value = 0.22;
       sfxBus.connect(sfxTone);
-      sfxTone.connect(master);
+      sfxTone.connect(sfxComp);
+      sfxComp.connect(master);
 
-      master.connect(comp);
-      comp.connect(ctx.destination);
+      master.connect(ctx.destination);
 
       _activeOsc = 0;
       verb = null; // no convolver needed now that music is pre-rendered
