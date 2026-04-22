@@ -15,9 +15,12 @@ android/.idea/
 android/app/release/
 android/**/.cxx/
 
-# APK output (built artifact, not source)
+# APK / bundle output (built artifacts, not source)
 PRISM-Game.apk
+PRISM-Game.aab
 *.keystore
+*.jks
+android/key.properties
 
 # IDE / tools
 .vscode/
