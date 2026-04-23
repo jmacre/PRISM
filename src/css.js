@@ -9,7 +9,7 @@ export const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 
-.pa{min-height:100vh;background:radial-gradient(ellipse 100% 55% at 50% -5%,#200840 0%,#07050e 65%),radial-gradient(ellipse 60% 40% at 20% 40%,rgba(200,68,255,.12),transparent 70%),radial-gradient(ellipse 50% 40% at 80% 60%,rgba(34,153,255,.08),transparent 70%);display:flex;flex-direction:column;align-items:center;padding:22px 10px 28px;gap:14px;font-family:'Inter',sans-serif;color:#b09acc;user-select:none;-webkit-user-select:none;overflow-x:hidden;position:relative;}
+.pa{min-height:100vh;background:radial-gradient(ellipse 100% 55% at 50% -5%,#200840 0%,#07050e 65%),radial-gradient(ellipse 60% 40% at 20% 40%,rgba(200,68,255,.12),transparent 70%),radial-gradient(ellipse 50% 40% at 80% 60%,rgba(34,153,255,.08),transparent 70%);display:flex;flex-direction:column;align-items:center;padding:calc(22px + env(safe-area-inset-top)) 10px calc(28px + env(safe-area-inset-bottom));gap:14px;font-family:'Inter',sans-serif;color:#b09acc;user-select:none;-webkit-user-select:none;overflow-x:hidden;position:relative;}
 /* Tone down the PRISM title in the HUD — it's a gameplay header, not the
    splash logo, so use smaller type + less letter-spacing. */
 .pa .pt{font-size:clamp(1.4rem,5.5vw,1.9rem);letter-spacing:.32em;padding-left:.32em;margin-bottom:4px;}
@@ -41,7 +41,10 @@ export const CSS = `
 .tsec{font-family:'Orbitron',sans-serif;font-size:.6rem;font-weight:700;}
 .tsec.ok{color:#8866cc;}.tsec.warn{color:#ffcc22;}.tsec.danger{color:#ff4466;}
 .ttrack{width:100%;height:6px;background:rgba(255,255,255,.05);border:1px solid rgba(160,80,255,.12);border-radius:4px;overflow:hidden;}
-.tbar{height:100%;border-radius:4px;transform-origin:left;will-change:transform;transition:transform .35s ease-out;}
+/* No transition on transform — the tick loop updates scaleX every frame,
+   and a CSS transition made the bar visibly lag behind the numeric
+   readout. Per-frame updates are naturally smooth at 60 FPS. */
+.tbar{height:100%;border-radius:4px;transform-origin:left;will-change:transform;}
 .tbar.ok   {background:linear-gradient(90deg,#4422aa,#9966ff);}
 .tbar.warn {background:linear-gradient(90deg,#aa6600,#ffcc22);}
 .tbar.danger{background:linear-gradient(90deg,#aa0022,#ff4466);animation:tpulse .32s ease-in-out infinite;}
@@ -126,7 +129,8 @@ export const CSS = `
   position:fixed;inset:0;
   background:radial-gradient(ellipse 100% 60% at 50% 40%,#2a0a4a 0%,#07050e 70%);
   display:flex;flex-direction:column;align-items:center;gap:40px;
-  z-index:700;padding:25vh 20px 32px;
+  z-index:700;
+  padding:calc(25vh + env(safe-area-inset-top)) 20px calc(32px + env(safe-area-inset-bottom));
 }
 .menu .pt{font-size:clamp(3rem,14vw,4.8rem);margin-bottom:15vh;}
 
@@ -211,9 +215,13 @@ export const CSS = `
 
 /* Tutorial gem overlays — used by <TutGem> to preview powerups. */
 .sp-z{position:absolute;inset:0;pointer-events:none;z-index:3;}
-.sp-mult{position:absolute;top:4%;right:4%;width:42%;height:42%;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:900;font-size:13px;color:#fff;background:linear-gradient(135deg,#ffd700,#ff8800);border:1.5px solid #fff;border-radius:50%;box-shadow:0 0 10px 2px rgba(255,215,0,.9),inset 0 0 4px rgba(255,255,255,.5);text-shadow:0 1px 2px rgba(0,0,0,.7);animation:multPulse 1.1s ease-in-out infinite;pointer-events:none;z-index:3;}
-.sp-mult5{background:linear-gradient(135deg,#66ddff,#2266ff);box-shadow:0 0 14px 3px rgba(80,180,255,.95),inset 0 0 5px rgba(255,255,255,.6);font-size:12px;}
-.sp-mult10{background:linear-gradient(135deg,#ff66dd,#aa00aa);box-shadow:0 0 18px 4px rgba(255,100,220,.95),0 0 32px 6px rgba(170,0,170,.55);font-size:11px;}
+/* Mult / shuffle badges — sized in em so they scale with the parent gem's
+   font-size (set by the tutorial wrapper). Previous fixed-px fonts got
+   auto-bumped by mobile text-size adjustment and didn't fit inside the
+   42% badge. Using em + bigger badge (55%) keeps ×10 legible on any DPR. */
+.sp-mult{position:absolute;top:2%;right:2%;width:55%;height:55%;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:900;font-size:0.3em;line-height:1;color:#fff;background:linear-gradient(135deg,#ffd700,#ff8800);border:0.045em solid #fff;border-radius:50%;box-shadow:0 0 0.3em 0.06em rgba(255,215,0,.9),inset 0 0 0.12em rgba(255,255,255,.5);text-shadow:0 0.03em 0.06em rgba(0,0,0,.7);animation:multPulse 1.1s ease-in-out infinite;pointer-events:none;z-index:3;-webkit-text-size-adjust:none;text-size-adjust:none;}
+.sp-mult5{background:linear-gradient(135deg,#66ddff,#2266ff);box-shadow:0 0 0.4em 0.09em rgba(80,180,255,.95),inset 0 0 0.15em rgba(255,255,255,.6);}
+.sp-mult10{background:linear-gradient(135deg,#ff66dd,#aa00aa);box-shadow:0 0 0.5em 0.12em rgba(255,100,220,.95),0 0 0.9em 0.18em rgba(170,0,170,.55);font-size:0.26em;}
 @keyframes mult10Spin{to{transform:rotate(360deg);}}
 .mw-badge{font-family:'Orbitron',sans-serif;font-size:.64rem;font-weight:900;letter-spacing:.08em;padding:4px 10px;border:1px solid currentColor;color:#ffcc44;animation:mwPulse .5s ease-in-out infinite alternate;}
 .mw-badge.m5{color:#66ccff;}
@@ -222,7 +230,7 @@ export const CSS = `
 .pg.flash-mult2 {box-shadow:0 0 0 2px #ffcc44,0 0 50px rgba(255,204,68,.7),inset 0 0 55px rgba(0,0,0,.88);}
 .pg.flash-mult5 {box-shadow:0 0 0 2px #66ccff,0 0 70px rgba(102,204,255,.85),inset 0 0 55px rgba(0,0,0,.88);}
 .pg.flash-mult10{box-shadow:0 0 0 3px #fff,0 0 90px rgba(255,255,255,.9),0 0 140px rgba(200,100,255,.7),inset 0 0 55px rgba(0,0,0,.88);}
-.sp-shuffle{position:absolute;top:4%;right:4%;width:46%;height:46%;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:900;font-size:18px;color:#fff;background:conic-gradient(from 0deg,#00d4ff,#9d00ff,#ff00aa,#00d4ff);border:1.5px solid #fff;border-radius:50%;box-shadow:0 0 12px 3px rgba(157,0,255,.85),inset 0 0 5px rgba(255,255,255,.5);text-shadow:0 1px 3px rgba(0,0,0,.7);animation:shufSpin 1.6s linear infinite;pointer-events:none;z-index:3;}
+.sp-shuffle{position:absolute;top:2%;right:2%;width:55%;height:55%;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-weight:900;font-size:0.48em;line-height:1;color:#fff;background:conic-gradient(from 0deg,#00d4ff,#9d00ff,#ff00aa,#00d4ff);border:0.045em solid #fff;border-radius:50%;box-shadow:0 0 0.35em 0.09em rgba(157,0,255,.85),inset 0 0 0.15em rgba(255,255,255,.5);text-shadow:0 0.03em 0.09em rgba(0,0,0,.7);animation:shufSpin 1.6s linear infinite;pointer-events:none;z-index:3;-webkit-text-size-adjust:none;text-size-adjust:none;}
 @keyframes shufSpin{to{transform:rotate(360deg);}}
 @keyframes multPulse{0%,100%{transform:scale(1);filter:brightness(1);}50%{transform:scale(1.08);filter:brightness(1.25);}}
 .sp-bb{position:absolute;border-radius:2px;}
@@ -236,13 +244,15 @@ export const CSS = `
 .sp-bm{position:absolute;top:16%;left:16%;right:16%;bottom:16%;border:2.5px solid rgba(255,255,255,.95);border-radius:50%;box-shadow:0 0 10px 3px rgba(255,255,255,.65),inset 0 0 8px rgba(255,255,255,.22);animation:bmRing 1.3s ease-in-out infinite;pointer-events:none;z-index:3;}
 @keyframes bmRing{0%,100%{transform:scale(1);opacity:.8;}50%{transform:scale(1.1);opacity:1;}}
 
-/* Inferno: fast orange/red spinning ring */
-.sp-inf{position:absolute;top:8%;left:8%;right:8%;bottom:8%;border-radius:50%;background:conic-gradient(#ff2200,#ff8800,#ffcc00,#ff5500,#ff2200);animation:infSpin .7s linear infinite;opacity:.92;pointer-events:none;z-index:3;mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#fff calc(100% - 4px));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#fff calc(100% - 4px));filter:brightness(1.3);}
+/* Inferno: fast orange/red spinning ring. % mask for mobile DPR consistency. */
+.sp-inf{position:absolute;top:8%;left:8%;right:8%;bottom:8%;border-radius:50%;background:conic-gradient(#ff2200,#ff8800,#ffcc00,#ff5500,#ff2200);animation:infSpin .7s linear infinite;opacity:.92;pointer-events:none;z-index:3;mask:radial-gradient(farthest-side,transparent 88%,#fff 88%);-webkit-mask:radial-gradient(farthest-side,transparent 88%,#fff 88%);filter:brightness(1.3);}
 @keyframes infSpin{to{transform:rotate(360deg);}}
 
-/* Vortex: full rainbow double ring, fastest */
-.sp-vortex-outer{position:absolute;top:5%;left:5%;right:5%;bottom:5%;border-radius:50%;background:conic-gradient(#ff2255,#ff8800,#ffcc22,#22ee88,#2299ff,#cc44ff,#ff2255);animation:vortexSpin .45s linear infinite;opacity:.95;pointer-events:none;z-index:3;mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#fff calc(100% - 5px));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#fff calc(100% - 5px));filter:brightness(1.5);}
-.sp-vortex-inner{position:absolute;top:22%;left:22%;right:22%;bottom:22%;border-radius:50%;background:conic-gradient(#ffcc22,#2299ff,#cc44ff,#22ee88,#ff2255,#ffcc22);animation:vortexSpin .45s linear infinite reverse;opacity:.8;pointer-events:none;z-index:3;mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#fff calc(100% - 3px));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#fff calc(100% - 3px));}
+/* Vortex: full rainbow double ring, fastest. Mask stops use % instead of
+   calc(100% - Npx) — fixed-px offsets didn't align on high-DPR mobile
+   and pushed the visible ring off-center. */
+.sp-vortex-outer{position:absolute;top:5%;left:5%;right:5%;bottom:5%;border-radius:50%;background:conic-gradient(#ff2255,#ff8800,#ffcc22,#22ee88,#2299ff,#cc44ff,#ff2255);animation:vortexSpin .45s linear infinite;opacity:.95;pointer-events:none;z-index:3;mask:radial-gradient(farthest-side,transparent 86%,#fff 86%);-webkit-mask:radial-gradient(farthest-side,transparent 86%,#fff 86%);filter:brightness(1.5);}
+.sp-vortex-inner{position:absolute;top:22%;left:22%;right:22%;bottom:22%;border-radius:50%;background:conic-gradient(#ffcc22,#2299ff,#cc44ff,#22ee88,#ff2255,#ffcc22);animation:vortexSpin .45s linear infinite reverse;opacity:.8;pointer-events:none;z-index:3;mask:radial-gradient(farthest-side,transparent 85%,#fff 85%);-webkit-mask:radial-gradient(farthest-side,transparent 85%,#fff 85%);}
 @keyframes vortexSpin{to{transform:rotate(360deg);}}
 
 /* Legend */

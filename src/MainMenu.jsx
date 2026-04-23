@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { warmupRenderer } from "./warmup.js";
+import { AUDIO } from "./audio.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN MENU
@@ -27,7 +28,17 @@ export function MainMenu({ best, onPlay, onOpenTutorial, showAbout, onOpenAbout,
       <div className="menu-stagger" style={{ textAlign: "center" }}>
         <div className="pt">PRISM</div>
       </div>
-      <button className="menu-btn menu-stagger" onClick={onPlay}>
+      <button
+        className="menu-btn menu-stagger no-click-sfx"
+        onClick={() => {
+          // Unique "launch" SFX instead of the generic UI click so the
+          // PLAY press feels like the start of a run, not a menu tap.
+          AUDIO.init();
+          AUDIO.resumeAll();
+          AUDIO.sfx("playStart");
+          onPlay();
+        }}
+      >
         ▶ PLAY
       </button>
       {best > 0 && (

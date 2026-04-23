@@ -535,16 +535,30 @@ export const AUDIO = (() => {
         const f = args[0] >= 5 ? 1400 : 1100;
         sn(f, 0.05, 0.08, "sine", t, f * 1.3);
       }
+      if (type === "click") {
+        // Soft UI tap — short, brightish, but quiet enough to not step on
+        // gameplay SFX when the user fiddles with buttons mid-run.
+        sn(1800, 0.03, 0.06, "triangle", t, 900);
+        sn(2600, 0.02, 0.03, "sine", t, 1400);
+      }
+      if (type === "playStart") {
+        // PLAY button — soft two-note chime. Lower register (E5 → B5
+        // perfect fifth) so it feels warm instead of shrill, no high
+        // shimmer layer (was the source of the "annoying" character),
+        // total duration ~0.35 s.
+        sn(440.00, 0.32, 0.13, "sine", t + 0.00, 440.00);  // A4
+        sn(659.25, 0.38, 0.10, "sine", t + 0.06, 659.25);  // E5 (fifth above)
+      }
       if (type === "clack") {
         // Mid-range knock. Fast pitch sweep (700→200 Hz in ~50 ms) gives
         // an "impact transient" character instead of a sustained tone,
         // so it doesn't read as squeaky or musical. Second layer adds
         // body without forming a chord with the first.
-        // Volumes tuned ~30% quieter than the rest of the SFX set since
-        // clacks fire in bursts during drops.
+        // Volumes bumped 25% louder than the previous pass — clacks were
+        // getting swallowed during busy cascades.
         const pitch = 0.85 + Math.random() * 0.3;
-        sn(700 * pitch, 0.05, 0.126, "triangle", t, 220 * pitch);
-        sn(440 * pitch, 0.06, 0.07, "triangle", t, 190 * pitch);
+        sn(700 * pitch, 0.05, 0.1575, "triangle", t, 220 * pitch);
+        sn(440 * pitch, 0.06, 0.0875, "triangle", t, 190 * pitch);
       }
       if (type === "over") {
         // Cinematic "game over" sting — shorter, punchier take:

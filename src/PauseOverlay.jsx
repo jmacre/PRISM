@@ -8,6 +8,31 @@ import { memo } from "react";
 // re-renders (see `useCallback` wiring in prism-game.jsx).
 // ─────────────────────────────────────────────────────────────────────────────
 
+// A compact toggle button used for MUSIC / SFX / BUZZ. Two-line label so
+// the button widths stay consistent and readable at the pause-screen font
+// size.
+const Toggle = ({ label, state, onClick }) => (
+  <button
+    className="icon-btn"
+    onClick={onClick}
+    style={{
+      opacity: state === "OFF" ? 0.4 : 1,
+      padding: "6px 0",
+      width: 64,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 2,
+      lineHeight: 1,
+    }}
+  >
+    <span style={{ fontSize: ".56rem", letterSpacing: ".1em" }}>{label}</span>
+    <span style={{ fontSize: ".62rem", fontWeight: 700, letterSpacing: ".08em" }}>
+      {state}
+    </span>
+  </button>
+);
+
 export const PauseOverlay = memo(function PauseOverlay({
   confirmAction,
   onConfirm,
@@ -17,8 +42,10 @@ export const PauseOverlay = memo(function PauseOverlay({
   onMenu,
   onToggleMusic,
   onToggleSfx,
+  onToggleHaptics,
   musicMuted,
   sfxMuted,
+  hapticsMuted,
 }) {
   // When the user hits NEW GAME or MENU, we show a confirmation step instead
   // of tearing the run down immediately.
@@ -43,34 +70,12 @@ export const PauseOverlay = memo(function PauseOverlay({
     <div className="overlay">
       <div className="ov-title pause">PAUSED</div>
 
-      {/* Music / SFX toggles — inline so the user can mute/unmute mid-run. */}
-      <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-        <button
-          className="icon-btn"
-          onClick={onToggleMusic}
-          style={{
-            opacity: musicMuted ? 0.45 : 1,
-            padding: "8px 10px",
-            fontSize: ".6rem",
-            width: 88,
-            textAlign: "center",
-          }}
-        >
-          MUSIC {musicMuted ? "OFF" : "ON"}
-        </button>
-        <button
-          className="icon-btn"
-          onClick={onToggleSfx}
-          style={{
-            opacity: sfxMuted ? 0.45 : 1,
-            padding: "8px 10px",
-            fontSize: ".6rem",
-            width: 76,
-            textAlign: "center",
-          }}
-        >
-          SFX {sfxMuted ? "OFF" : "ON"}
-        </button>
+      {/* Music / SFX / Haptics toggles — one row of equal-width two-line
+          buttons so the group stays tidy regardless of state. */}
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+        <Toggle label="MUSIC" state={musicMuted ? "OFF" : "ON"} onClick={onToggleMusic} />
+        <Toggle label="SFX" state={sfxMuted ? "OFF" : "ON"} onClick={onToggleSfx} />
+        <Toggle label="BUZZ" state={hapticsMuted ? "OFF" : "ON"} onClick={onToggleHaptics} />
       </div>
 
       <button className="ov-btn" onClick={onResume}>

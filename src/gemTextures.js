@@ -193,8 +193,12 @@ export function buildGemTextures() {
     GEM_TEXTURES[colorKey] = canvas;
   }
 
-  // Wildcard ("w") gem — hand-drawn faceted crystal to match the app icon.
-  buildWildcardTexture(SZ);
+  // Wildcard ("w") gem — hand-drawn faceted crystal to match the app
+  // icon. Rendered at 4× the normal gem size (512 px) because prisms are
+  // rare (almost never >2 on screen), so the extra memory is negligible
+  // and the extra pixels mean the facet edges stay razor-sharp even when
+  // the gem is enlarged by the selection pulse animation.
+  buildWildcardTexture(SZ * 4);
 
   // Per-colour glow halos — used behind each gem in the draw loop.
   buildGlowTextures();
@@ -210,7 +214,8 @@ function buildWildcardTexture(SZ) {
   const wctx = wc.getContext("2d");
   const ws = SZ / 100;
 
-  // Helper for painting a facet.
+  // The icon is a flat-shaded vector — no per-facet gradients, no
+  // lighting overlays. Just solid fills with crisp edges.
   const poly = (fill, coords) => {
     wctx.fillStyle = fill;
     wctx.beginPath();
@@ -222,32 +227,75 @@ function buildWildcardTexture(SZ) {
     wctx.fill();
   };
 
-  poly("#eeccdd", [50, 8, 30, 35, 70, 35]); // top cap
-  poly("#dd3388", [50, 8, 30, 35, 10, 50]); // top-left
-  poly("#55aadd", [50, 8, 70, 35, 90, 50]); // top-right
-  poly("#dd88bb", [30, 35, 70, 35, 50, 50]); // mid band
-  poly("#442266", [10, 50, 30, 35, 50, 50, 35, 75]); // left
-  poly("#6644aa", [90, 50, 70, 35, 50, 50, 65, 75]); // right
-  poly("#1a2244", [35, 75, 50, 50, 50, 92]); // bottom-left
-  poly("#224477", [65, 75, 50, 50, 50, 92]); // bottom-right
+  // Icon-matched palette + 3-zone layout:
+  //   Top zone — triangular cap with pink-white highlight, big hot-pink
+  //     facet on the upper-left, big cyan facet on the upper-right,
+  //     lavender wedge filling the centre under the cap.
+  //   Middle zone — one wide vivid-purple band spanning the full width.
+  //   Bottom zone — pointed triangle with dark indigo (left) and dark
+  //     blue-purple (right) meeting at the bottom tip.
+  //
+  //                      (50, 10)
+  //                    /          \
+  //                (42, 28)   (58, 28)     <- top-cap base
+  //              /      \      /      \
+  //          (10, 52) --(50, 52)-- (90, 52)  <- widest line
+  //              |                       |
+  //              |   middle purple band  |
+  //              |                       |
+  //          (10, 62) --(50, 62)-- (90, 62)
+  //              \       |       /
+  //             (30, 82) | (70, 82)
+  //                  \   |   /
+  //                   (50, 96)
+
+  // Draw in paint order: big facets first, then smaller highlight facets
+  // on top. Each big facet extends all the way to the top peak (50, 10)
+  // so there are no gaps in the outline — the top-cap highlight is
+  // drawn LAST as a small white triangle sitting over the peak.
+
+  // Upper-left — hot pink / vivid magenta (full left half of upper zone)
+  poly("#e24d93", [50, 10, 42, 28, 10, 52, 50, 52]);
+  // Upper-right — cyan / teal (full right half of upper zone)
+  poly("#3cc6df", [50, 10, 58, 28, 90, 52, 50, 52]);
+  // Upper centre wedge — lavender (between top cap and middle band)
+  poly("#c89cdc", [42, 28, 58, 28, 50, 52]);
+  // Top-cap highlight (drawn AFTER upper-left/right so it sits on top)
+  poly("#fdf0f7", [50, 10, 42, 28, 58, 28]);
+  // Middle band — one wide vivid-purple strip (the icon's signature belt)
+  poly("#7b4dcc", [10, 52, 90, 52, 90, 62, 10, 62]);
+  // Lower-left — dark indigo (near-black)
+  poly("#1c1a3e", [10, 62, 50, 62, 50, 96, 30, 82]);
+  // Lower-right — medium blue (transition from upper cyan)
+  poly("#2c5aa8", [50, 62, 90, 62, 70, 82, 50, 96]);
 
   // Thin white edge lines connecting the facets.
   wctx.strokeStyle = "rgba(255,255,255,0.15)";
   wctx.lineWidth = 0.5 * ws;
   const EDGES = [
-    [50, 8, 30, 35],
-    [50, 8, 70, 35],
-    [50, 8, 10, 50],
-    [50, 8, 90, 50],
-    [30, 35, 70, 35],
-    [30, 35, 50, 50],
-    [70, 35, 50, 50],
-    [10, 50, 35, 75],
-    [90, 50, 65, 75],
-    [35, 75, 50, 92],
-    [65, 75, 50, 92],
-    [50, 50, 35, 75],
-    [50, 50, 65, 75],
+    // Top cap
+    [50, 10, 42, 28],
+    [50, 10, 58, 28],
+    [42, 28, 58, 28],
+    // Top cap → widest line
+    [42, 28, 10, 52],
+    [58, 28, 90, 52],
+    // Upper centre wedge — interior lines down to widest-mid
+    [42, 28, 50, 52],
+    [58, 28, 50, 52],
+    // Horizontal middle-band boundaries
+    [10, 52, 90, 52],
+    [10, 62, 90, 62],
+    // Outer vertical edges of the middle band
+    [10, 52, 10, 62],
+    [90, 52, 90, 62],
+    // Lower outline
+    [10, 62, 30, 82],
+    [30, 82, 50, 96],
+    [50, 96, 70, 82],
+    [70, 82, 90, 62],
+    // Lower centre divider
+    [50, 62, 50, 96],
   ];
   for (const [x1, y1, x2, y2] of EDGES) {
     wctx.beginPath();
@@ -257,6 +305,54 @@ function buildWildcardTexture(SZ) {
   }
 
   GEM_TEXTURES.w = wc;
+
+  // Then asynchronously replace with the ACTUAL app-icon PNG so the
+  // in-game prism matches the icon pixel-perfect. The polygon version
+  // above is used as a fallback for the first frames while the image
+  // loads + in case the fetch ever fails.
+  if (typeof Image !== "undefined") {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const iconCanvas = document.createElement("canvas");
+        iconCanvas.width = SZ;
+        iconCanvas.height = SZ;
+        const ictx = iconCanvas.getContext("2d");
+        // Android adaptive-icon foregrounds have ~18% padding around
+        // the safe-zone. Crop it out so the gem fills the texture.
+        const pad = 0.18;
+        const sx = img.width * pad;
+        const sy = img.height * pad;
+        const sw = img.width * (1 - 2 * pad);
+        const sh = img.height * (1 - 2 * pad);
+        ictx.drawImage(img, sx, sy, sw, sh, 0, 0, SZ, SZ);
+
+        // Mask to the gem silhouette — kills everything outside the
+        // gem outline (dark halo + lighter blue glow, all gone).
+        ictx.globalCompositeOperation = "destination-in";
+        ictx.fillStyle = "#000";
+        const s = SZ / 100;
+        const silhouette = [
+          [50, 10], [58, 28], [90, 52], [90, 62],
+          [70, 82], [50, 96], [30, 82], [10, 62],
+          [10, 52], [42, 28],
+        ];
+        ictx.beginPath();
+        ictx.moveTo(silhouette[0][0] * s, silhouette[0][1] * s);
+        for (let i = 1; i < silhouette.length; i++) {
+          ictx.lineTo(silhouette[i][0] * s, silhouette[i][1] * s);
+        }
+        ictx.closePath();
+        ictx.fill();
+        ictx.globalCompositeOperation = "source-over";
+
+        GEM_TEXTURES.w = iconCanvas;
+      } catch {
+        // Silent fallback — polygon version remains in place.
+      }
+    };
+    img.src = "/prism-gem.png";
+  }
 }
 
 function buildGlowTextures() {

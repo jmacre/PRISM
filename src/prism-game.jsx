@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
 import { AUDIO } from "./audio.js";
+import { HAPTICS } from "./haptics.js";
 import { ROWS, COLS, PX, GAP, COLORS, PAL, CLIP, MILESTONE, FEVER_DUR } from "./constants.js";
 import {
   STORAGE,
@@ -74,6 +75,7 @@ export default function PrismGame() {
   // True while a black overlay is fading in or out to mask a screen change.
   const [transitioning, setTransitioning] = useState(false);
   const [sfxMuted, setSfxMuted] = useState(() => STORAGE.get("prism_sfx_muted", false));
+  const [hapticsMuted, setHapticsMuted] = useState(() => STORAGE.get("prism_haptics_muted", false));
 
   const timerRaf = useRef(null);
   const remainingRef = useRef(0); // ms remaining on game timer — counts down by delta time
@@ -144,9 +146,15 @@ export default function PrismGame() {
       const el = now - lastTickRef.current;
       lastTickRef.current = now;
 
-      // Only drain the timer while the player can actually act.
-      const frozen = pausedRef.current || busyRef.current || !startedRef.current;
-      if (!frozen) remainingRef.current = Math.max(0, remainingRef.current - el);
+      // Drain-frozen states: timer doesn't decrement. Fever freezes the
+      // drain entirely so players can rip through cascades. Pause / busy /
+      // not-yet-started also freeze.
+      const drainFrozen =
+        pausedRef.current ||
+        busyRef.current ||
+        !startedRef.current ||
+        feverRef.current;
+      if (!drainFrozen) remainingRef.current = remainingRef.current - el;
 
       // Tempo scales with the current time ceiling: 118 BPM at 14s → 155 BPM at 1.5s.
       const maxMs = getMaxMs(movesRef.current);
@@ -157,9 +165,14 @@ export default function PrismGame() {
       const frac = Math.max(0, Math.min(1, remain / maxMs));
       const isFever = feverRef.current;
 
+      // UI-frozen: bar/text stop updating while paused / busy / not-started.
+      // During fever the timer doesn't drain (drainFrozen handles that) but
+      // we still update the bar so the orange tier renders.
+      const uiFrozen = pausedRef.current || busyRef.current || !startedRef.current;
+
       // Update the timer bar (direct DOM write — we'd rather skip a React
       // render for something that changes every frame).
-      if (barRef.current && !frozen) {
+      if (barRef.current && !uiFrozen) {
         const tier = isFever ? "fever" : pickTier(frac, barRef.current.dataset.tier);
         barRef.current.style.transform = `scaleX(${frac})`;
         if (barRef.current.dataset.tier !== tier) {
@@ -168,20 +181,24 @@ export default function PrismGame() {
         }
       }
 
-      // Update the numeric seconds readout.
-      if (secRef.current && !frozen) {
-        const label = isFever ? "🔥" : "";
-        const newText = `${label}${(Math.max(0, remain) / 1000).toFixed(1)}s`;
+      // Update the numeric seconds readout. During fever we replace the
+      // number with just the flame emoji — the timer isn't draining so
+      // the number would be meaningless and flashy.
+      if (secRef.current && !uiFrozen) {
+        const newText = isFever ? "🔥" : `${(Math.max(0, remain) / 1000).toFixed(1)}s`;
         if (secRef.current.textContent !== newText) secRef.current.textContent = newText;
-        const stier = pickTier(frac, secRef.current.dataset.tier);
+        const stier = isFever ? "ok" : pickTier(frac, secRef.current.dataset.tier);
         if (secRef.current.dataset.tier !== stier) {
           secRef.current.className = `tsec ${stier}`;
           secRef.current.dataset.tier = stier;
         }
       }
 
-      // Timer ran out — but wait for any in-progress cascade to finish first.
-      if (remain <= 0 && !busyRef.current && !pausedRef.current) {
+      // Timer ran out — but give a short grace window (~400 ms) past zero
+      // so a swap initiated right as the bar empties still gets credited
+      // (addBonus inside attemptSwap will top the timer back up). Also
+      // wait for any in-progress cascade to finish.
+      if (remain <= -400 && !busyRef.current && !pausedRef.current) {
         triggerGameOverRef.current?.("timeout");
         return;
       }
@@ -201,6 +218,13 @@ export default function PrismGame() {
   useEffect(() => {
     if (screen !== "play") return;
     const iv = setInterval(() => {
+      // Lock countdowns ALWAYS tick down while the game is live — they
+      // only pause when the game is paused. The setBoard + cascade
+      // trigger below is still gated on busy so we don't stomp on
+      // in-flight animations, but the `.chained` number decrements
+      // regardless (it's a direct mutation; the canvas draw loop reads
+      // the current value each frame so the visual countdown stays
+      // accurate without a React re-render).
       if (pausedRef.current || gameOvRef.current) return;
 
       const now2 = performance.now();
@@ -234,9 +258,16 @@ export default function PrismGame() {
         });
       }
 
+      // Only dispatch React state updates + trigger a cascade when the
+      // game isn't already busy. If we ARE busy, the direct mutation of
+      // `.chained = null` above is still reflected in the canvas draw
+      // loop, and the in-flight cascade will see the newly-freed gem
+      // when it re-scans for matches.
+      if (busyRef.current) return;
+
       const newBoard = board.map(row => [...row]);
       setBoard(newBoard);
-      if (!busyRef.current && findMatches(newBoard).matched.size > 0) {
+      if (findMatches(newBoard).matched.size > 0) {
         setBusy(true);
         busyRef.current = true;
         pauseAwareTimeout(() => cascade(newBoard, 1), 200);
@@ -305,7 +336,7 @@ export default function PrismGame() {
     vfxRef.current = [];
     vfxSpawned.current.clear();
     dropsRef.current = {};
-    clearTimeout(feverTimer.current);
+    if (feverTimer.current) { clearInterval(feverTimer.current); feverTimer.current = null; }
 
     setScore(0);
     setCombo(0);
@@ -384,14 +415,36 @@ export default function PrismGame() {
     setFever(true);
     AUDIO.sfx("fever");
     showBanner("🔥 FEVER MODE — 3× SCORE!", "fever", 2000, 3);
-    // Fever time reward, clamped to current ceiling
-    const fmax = getMaxMs(movesRef.current);
-    remainingRef.current = Math.min(remainingRef.current + 8000, fmax);
-    if (feverTimer.current) clearTimeout(feverTimer.current);
-    feverTimer.current = setTimeout(() => {
-      feverRef.current = false;
-      setFever(false);
-    }, FEVER_DUR);
+    // Fever fills the timer to max and freezes the drain — bar displays
+    // full + orange for the duration, and drain resumes from full when
+    // fever ends.
+    remainingRef.current = getMaxMs(movesRef.current);
+    // Pause-aware fever timeout. A raw setTimeout would keep counting down
+    // while paused — instead, poll every 50 ms and only decrement `remaining`
+    // when the game is running. End fever when we've accumulated FEVER_DUR
+    // of unpaused time.
+    if (feverTimer.current) clearInterval(feverTimer.current);
+    let feverRemaining = FEVER_DUR;
+    let feverLastTick = performance.now();
+    const feverGen = gameGenRef.current;
+    feverTimer.current = setInterval(() => {
+      if (feverGen !== gameGenRef.current) {
+        clearInterval(feverTimer.current);
+        feverTimer.current = null;
+        return;
+      }
+      const now = performance.now();
+      const dt = now - feverLastTick;
+      feverLastTick = now;
+      if (pausedRef.current || gameOvRef.current) return;
+      feverRemaining -= dt;
+      if (feverRemaining <= 0) {
+        clearInterval(feverTimer.current);
+        feverTimer.current = null;
+        feverRef.current = false;
+        setFever(false);
+      }
+    }, 50);
   }, []);
 
   // Fever triggers when a cascade reaches 4+ levels deep
@@ -498,26 +551,68 @@ export default function PrismGame() {
           wildcardClears.add(`${r},${c}`);
 
           const pType = b[r][c].type;
+          // Spawn the VFX blast here — the `clr` useEffect that normally
+          // handles this can't see this cell because React's board state
+          // has the prism cell nulled (from finalBoard) before cascade
+          // runs, so it reads `board[prismPos]` as undefined and skips.
+          const px = PAD + c * CELL + PX / 2;
+          const py = PAD + r * CELL + PX / 2;
           if (pType === "zap") {
             addCross(wildcardClears, r, c);
             AUDIO.sfx("zap");
+            HAPTICS.fire("zap");
+            // Zap blast needs jagged bolt paths pre-computed (same as
+            // the normal zap VFX spawner further down).
+            const makeBoltPts = (x1, y1, x2, y2, jag) => {
+              const pts = [{ x: x1, y: y1 }];
+              const dx = x2 - x1;
+              const dy = y2 - y1;
+              const steps = Math.max(4, Math.floor(Math.sqrt(dx * dx + dy * dy) / 14));
+              for (let s2 = 1; s2 < steps; s2++) {
+                const t2 = s2 / steps;
+                pts.push({
+                  x: x1 + dx * t2 + (Math.random() - 0.5) * jag,
+                  y: y1 + dy * t2 + (Math.random() - 0.5) * jag,
+                });
+              }
+              pts.push({ x: x2, y: y2 });
+              return pts;
+            };
+            const bL = PAD, bR = PAD + COLS * CELL - GAP;
+            const bT = PAD, bB = PAD + ROWS * CELL - GAP;
+            vfxRef.current.push({
+              type: "zapBlast",
+              x: px, y: py,
+              start: performance.now(), dur: 600,
+              hBolt: makeBoltPts(bL - 10, py, bR + 10, py, 12),
+              vBolt: makeBoltPts(px, bT - 10, px, bB + 10, 12),
+              hCore: makeBoltPts(bL - 5, py, bR + 5, py, 6),
+              vCore: makeBoltPts(px, bT - 5, px, bB + 5, 6),
+            });
           }
           if (pType === "bomb") {
             addRect(wildcardClears, r, c, 2);
             AUDIO.sfx("bomb");
+            HAPTICS.fire("bomb");
+            vfxRef.current.push({ type: "bombBlast", x: px, y: py, start: performance.now(), dur: 700 });
           }
           if (pType === "inferno") {
             addCheckered(wildcardClears, (r + c) % 2);
             AUDIO.sfx("inferno");
+            HAPTICS.fire("inferno");
+            vfxRef.current.push({ type: "infernoBlast", x: px, y: py, start: performance.now(), dur: 900 });
           }
           if (pType === "vortex") {
             addAll(wildcardClears);
             AUDIO.sfx("vortex");
+            HAPTICS.fire("vortex");
+            vfxRef.current.push({ type: "vortexBlast", x: px, y: py, start: performance.now(), dur: 1000 });
           }
           b[r][c].wasWild = false;
         }
       if (wildcardUsed) {
         AUDIO.sfx("wildcard");
+        HAPTICS.fire("wildcard");
         showBanner("\u2726 PRISM!", "vortex", 1800, 8);
         shakeBoard();
       }
@@ -609,6 +704,7 @@ export default function PrismGame() {
         const { r, c } = parseKey(k);
         if (b[r]?.[c]?.type === "shuffle") {
           AUDIO.sfx("shuffle");
+          HAPTICS.fire("wildcard"); // sparkle-style burst
           shuffleEffectRef.current = performance.now();
           b[r][c].type = "normal";
           doShuffle = true;
@@ -631,17 +727,21 @@ export default function PrismGame() {
       const isInferno = specTypes.includes("inferno") && !specTypes.includes("vortex");
       if (specTypes.includes("vortex")) {
         AUDIO.sfx("vortex");
+        HAPTICS.fire("vortex");
         shakeBoard();
       } else if (isInferno) {
         AUDIO.sfx("inferno");
+        HAPTICS.fire("inferno");
         shakeBoard();
         setTimeout(shakeBoard, 250);
         setTimeout(shakeBoard, 500);
       } else if (specTypes.includes("bomb")) {
         AUDIO.sfx("bomb");
+        HAPTICS.fire("bomb");
         if (specTypes.length >= 2) shakeBoard();
       } else if (specTypes.includes("zap")) {
         AUDIO.sfx("zap");
+        HAPTICS.fire("zap");
       } else {
         const { r, c } = parseKey([...matched][0]);
         AUDIO.sfx("match", b[r]?.[c]?.c || "r");
@@ -813,6 +913,7 @@ export default function PrismGame() {
           prismSlideRef.current = null;
           hiddenCellsRef.current = null;
           AUDIO.sfx("doublePrism");
+          HAPTICS.fire("doublePrism");
           showBanner("\u2726\u2726 DOUBLE PRISM!! \u2726\u2726", "vortex", 3000, 99);
           const boardCx = PAD + (COLS * CELL) / 2,
             boardCy = PAD + (ROWS * CELL) / 2;
@@ -834,8 +935,10 @@ export default function PrismGame() {
           shakeBoard();
           setTimeout(shakeBoard, 300);
           setTimeout(shakeBoard, 600);
-          // Restore full board then mark all as clearing
-          setBoard(board.map(row => [...row]));
+          // Mark every cell for clearing. No need to setBoard() here —
+          // the cells are already populated in state, and a redundant
+          // board update would thrash the draw useEffect (registered on
+          // board changes) and cause visible flicker during the clear.
           const allKeys = new Set();
           for (let rr = 0; rr < ROWS; rr++) for (let cc = 0; cc < COLS; cc++) allKeys.add(`${rr},${cc}`);
           setClr(allKeys);
@@ -935,7 +1038,6 @@ export default function PrismGame() {
         setStreak(0);
         setShake({ key: `${r1},${c1}`, dir });
         setTimeout(() => setShake(null), 430);
-        showBanner("no match", "bad", 700, 0);
         setSel(null);
         return;
       }
@@ -960,6 +1062,21 @@ export default function PrismGame() {
     },
     [board, cascade, addBonus]
   );
+
+  // Global button-tap SFX. One delegated pointerdown listener fires the
+  // "click" SFX whenever a <button> is pressed anywhere in the app. Buttons
+  // that should stay silent (e.g. the canvas board swap targets aren't
+  // <button>s, so they're unaffected) can opt out with class "no-click-sfx".
+  useEffect(() => {
+    const onAnyButtonDown = e => {
+      const btn = e.target.closest?.("button");
+      if (!btn) return;
+      if (btn.classList.contains("no-click-sfx")) return;
+      AUDIO.sfx("click");
+    };
+    document.addEventListener("pointerdown", onAnyButtonDown, true);
+    return () => document.removeEventListener("pointerdown", onAnyButtonDown, true);
+  }, []);
 
   const audioInited = useRef(false);
   const ensureAudio = () => {
@@ -1060,11 +1177,15 @@ export default function PrismGame() {
     showAbout,
     showTut,
     tutStep,
+    paused,
+    confirmAction,
     pauseGame,
+    resumeGame,
     setShowAbout,
     setShowTut,
     setTutStep,
     setScreen,
+    setConfirmAction,
   });
   useEffect(() => {
     navRef.current = {
@@ -1072,11 +1193,15 @@ export default function PrismGame() {
       showAbout,
       showTut,
       tutStep,
+      paused,
+      confirmAction,
       pauseGame,
+      resumeGame,
       setShowAbout,
       setShowTut,
       setTutStep,
       setScreen,
+      setConfirmAction,
     };
   });
 
@@ -1103,7 +1228,19 @@ export default function PrismGame() {
         }
         return;
       }
-      if (nav.screen === "play" && !gameOvRef.current && !pausedRef.current) {
+      // Pause flow:
+      //  - If the "NEW GAME?" / "QUIT TO MENU?" confirmation is open, back
+      //    acts as CANCEL (returns to the main pause screen).
+      //  - If we're just paused (no confirm), back acts as RESUME.
+      if (nav.paused) {
+        if (nav.confirmAction) {
+          nav.setConfirmAction(null);
+        } else {
+          nav.resumeGame();
+        }
+        return;
+      }
+      if (nav.screen === "play" && !gameOvRef.current) {
         nav.pauseGame();
       }
     };
@@ -1158,6 +1295,20 @@ export default function PrismGame() {
     AUDIO.setSfxMuted(n);
     STORAGE.set("prism_sfx_muted", n);
   }, [sfxMuted]);
+
+  const toggleHaptics = useCallback(() => {
+    const n = !hapticsMuted;
+    setHapticsMuted(n);
+    HAPTICS.setEnabled(!n);
+    STORAGE.set("prism_haptics_muted", n);
+    // Quick confirmation tick so the user feels it turn on.
+    if (!n) HAPTICS.fire("select");
+  }, [hapticsMuted]);
+
+  // Sync HAPTICS enabled state with the stored preference on mount.
+  useEffect(() => {
+    HAPTICS.setEnabled(!hapticsMuted);
+  }, [hapticsMuted]);
 
   // ── Canvas board draw loop ──────────────────────────────────────────────
   const CELL = PX + GAP;
@@ -1234,6 +1385,10 @@ export default function PrismGame() {
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
+      // Track full-board clear so we can draw a desaturation overlay
+      // AFTER the gem loop (single composite-mode rect is much cheaper
+      // than applying ctx.filter per gem).
+      const fullBoardClear = clr.size >= ROWS * COLS;
       const hcs = hiddenCellsRef.current;
       for (let r = 0; r < ROWS; r++)
         for (let c = 0; c < COLS; c++) {
@@ -1386,15 +1541,31 @@ export default function PrismGame() {
             const gs2 = glowTex.width * glowScale;
             ctx.drawImage(glowTex, -gs2 / 2, -gs2 / 2, gs2, gs2);
           }
-          // Prism extra sparkle (lightweight — just 4 dots, no gradients)
+          // Prism aura — rainbow conic ring that slowly rotates, plus
+          // orbiting sparkle dots. The ring is the signature "this is a
+          // prism, not just a white gem" cue.
           if (g.c === "w") {
-            ctx.globalAlpha = alpha * 0.5;
+            ctx.save();
+            ctx.globalAlpha = alpha * (0.45 + 0.25 * (gp * 0.5 + 0.5));
+            drawConicRing(
+              ctx,
+              0,
+              0,
+              PX * 0.46,
+              PX * 0.56,
+              ["#ff2288", "#ff8800", "#ffcc22", "#22ee88", "#2299ff", "#cc44ff"],
+              32,
+              t * 1.4
+            );
+            ctx.restore();
+            // Orbiting white sparkle dots — 6 dots rotating around the gem.
+            ctx.globalAlpha = alpha * 0.7;
             ctx.fillStyle = "#ffffff";
-            for (let sp = 0; sp < 4; sp++) {
-              const spA = (sp * Math.PI) / 2 + t * 4;
-              const spR = PX * 0.5;
+            for (let sp = 0; sp < 6; sp++) {
+              const spA = (sp * Math.PI) / 3 + t * 3.5;
+              const spR = PX * 0.54;
               ctx.beginPath();
-              ctx.arc(Math.cos(spA) * spR, Math.sin(spA) * spR, 1.5, 0, Math.PI * 2);
+              ctx.arc(Math.cos(spA) * spR, Math.sin(spA) * spR, 2, 0, Math.PI * 2);
               ctx.fill();
             }
           }
@@ -1602,7 +1773,20 @@ export default function PrismGame() {
           }
           ctx.restore();
         }
-      // Draw prism slide animation
+      // Double-prism color drain — a single grey rectangle drawn with
+      // "saturation" composite mode desaturates everything underneath
+      // without the per-gem ctx.filter overhead.
+      if (fullBoardClear) {
+        const clrElapsed = (now - clearStart.current) / 1000;
+        const p = Math.min(1, clrElapsed / 0.5);
+        ctx.save();
+        ctx.globalCompositeOperation = "saturation";
+        ctx.globalAlpha = p;
+        ctx.fillStyle = "rgb(128,128,128)"; // neutral = 0 saturation
+        ctx.fillRect(0, 0, CW, CH);
+        ctx.restore();
+      }
+      // Draw prism slide animation (+ rainbow trail for prism color).
       const ps = prismSlideRef.current;
       if (ps) {
         const pElapsed = (performance.now() - ps.start) / 1000;
@@ -1610,11 +1794,102 @@ export default function PrismGame() {
         const ease = pP * (2 - pP); // ease-out
         const fx = PAD + ps.fromC * CELL + PX / 2 + (ps.toC - ps.fromC) * CELL * ease;
         const fy = PAD + ps.fromR * CELL + PX / 2 + (ps.toR - ps.fromR) * CELL * ease;
+        const slideColor = ps.gemColor || "w";
+
+        // Polished rainbow trail: three layered passes (outer glow, main
+        // rainbow band, white core) + drifting sparkles along the ribbon.
+        // Colors come from a smooth linear gradient (perpendicular to
+        // motion) so there's no hard stripe edges — reads as "refracted
+        // light" rather than a kid-drawn flag.
+        if (slideColor === "w") {
+          const sx = PAD + ps.fromC * CELL + PX / 2;
+          const sy = PAD + ps.fromR * CELL + PX / 2;
+          const dxSlide = fx - sx;
+          const dySlide = fy - sy;
+          const horizontal = ps.fromR === ps.toR;
+          const nx = horizontal ? 0 : 1;
+          const ny = horizontal ? 1 : 0;
+          const WIDTH = 22;
+
+          // Build a rainbow gradient perpendicular to the slide direction.
+          const g0x = sx - nx * (WIDTH / 2);
+          const g0y = sy - ny * (WIDTH / 2);
+          const g1x = sx + nx * (WIDTH / 2);
+          const g1y = sy + ny * (WIDTH / 2);
+          const rbw = ctx.createLinearGradient(g0x, g0y, g1x, g1y);
+          rbw.addColorStop(0.00, "#ff3d7f");
+          rbw.addColorStop(0.18, "#ff8833");
+          rbw.addColorStop(0.36, "#ffe400");
+          rbw.addColorStop(0.54, "#36d96b");
+          rbw.addColorStop(0.72, "#3f9ffc");
+          rbw.addColorStop(0.90, "#a248ff");
+          rbw.addColorStop(1.00, "#ff4db2");
+
+          // Tail-fade gradient — older end (start) fades out slightly so
+          // the ribbon looks like it's streaming from the prism rather
+          // than bolted to the cell.
+          const fadeGrad = ctx.createLinearGradient(sx, sy, fx, fy);
+          fadeGrad.addColorStop(0, "rgba(255,255,255,0.55)");
+          fadeGrad.addColorStop(1, "rgba(255,255,255,1)");
+
+          const drawRibbon = w => {
+            ctx.beginPath();
+            ctx.moveTo(sx - nx * (w / 2), sy - ny * (w / 2));
+            ctx.lineTo(fx - nx * (w / 2), fy - ny * (w / 2));
+            ctx.lineTo(fx + nx * (w / 2), fy + ny * (w / 2));
+            ctx.lineTo(sx + nx * (w / 2), sy + ny * (w / 2));
+            ctx.closePath();
+            ctx.fill();
+          };
+
+          // Pass 1 — wide outer glow. A wider translucent pass at
+          // 35% alpha gives the halo effect; shadowBlur is avoided here
+          // because it was costing ~2-3 ms per frame on Android.
+          ctx.save();
+          ctx.globalAlpha = (1 - pP * 0.2) * 0.28;
+          ctx.fillStyle = rbw;
+          drawRibbon(WIDTH * 1.55);
+          ctx.restore();
+
+          // Pass 2 — main rainbow band at full saturation.
+          ctx.save();
+          ctx.globalAlpha = 1 - pP * 0.2;
+          ctx.fillStyle = rbw;
+          drawRibbon(WIDTH);
+          ctx.restore();
+
+          // Pass 3 — bright white core stripe running the length (with
+          // tail fade so it feels like it's trailing off behind).
+          ctx.save();
+          ctx.globalAlpha = (1 - pP * 0.3) * 0.7;
+          ctx.fillStyle = fadeGrad;
+          drawRibbon(4);
+          ctx.restore();
+
+          // Pass 4 — drifting sparkles. Each sparkle sits along the ribbon
+          // path at a fractional position, jittered perpendicular to the
+          // motion via sine-waves keyed on wall-clock time.
+          ctx.save();
+          ctx.fillStyle = "rgba(255,255,255,0.95)";
+          ctx.globalAlpha = 1 - pP * 0.3;
+          const now = performance.now() / 1000;
+          for (let i = 0; i < 5; i++) {
+            const frac = (i + 1) / 6 + 0.04 * Math.sin(now * 3 + i);
+            const px = sx + dxSlide * frac;
+            const py = sy + dySlide * frac;
+            const perp = Math.sin(now * 4 + i * 1.7) * (WIDTH * 0.28);
+            const radius = 1.4 + Math.abs(Math.sin(now * 6 + i)) * 0.8;
+            ctx.beginPath();
+            ctx.arc(px + nx * perp, py + ny * perp, radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
         ctx.save();
         ctx.translate(fx, fy);
         // Draw the gem texture sliding toward the prism
         const pgs = PX * 0.82;
-        const slideColor = ps.gemColor || "w";
         ctx.globalAlpha = 1 - pP * 0.3;
         if (GEM_TEXTURES[slideColor]) ctx.drawImage(GEM_TEXTURES[slideColor], -pgs / 2, -pgs / 2, pgs, pgs);
         // Trail glow
@@ -1623,6 +1898,8 @@ export default function PrismGame() {
         if (glowTex) ctx.drawImage(glowTex, -glowTex.width / 2, -glowTex.width / 2, glowTex.width, glowTex.width);
         ctx.restore();
       }
+
+
       // Draw VFX explosions
       for (let i = vfxRef.current.length - 1; i >= 0; i--) {
         const vfx = vfxRef.current[i];
@@ -2229,8 +2506,10 @@ export default function PrismGame() {
               onMenu={onPauseMenu}
               onToggleMusic={toggleMusic}
               onToggleSfx={toggleSfx}
+              onToggleHaptics={toggleHaptics}
               musicMuted={musicMuted}
               sfxMuted={sfxMuted}
+              hapticsMuted={hapticsMuted}
             />
           )}
         </div>

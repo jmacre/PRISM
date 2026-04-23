@@ -5,14 +5,120 @@
 // main game. All tutorial-specific gem previews live here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { COLORS } from "./constants.js";
-import { GEM_TEXTURES } from "./gemTextures.js";
+import { useEffect, useRef } from "react";
+import { COLORS, PX } from "./constants.js";
+import { GEM_TEXTURES, drawConicRing } from "./gemTextures.js";
 
 // Tutorial previews render gems as plain <img> tags with data-URL sources.
 // Building these once up-front is cheaper than rendering the full canvas.
 const gemDataUrls = {};
 for (const k of [...COLORS, "w"]) {
   if (GEM_TEXTURES[k]) gemDataUrls[k] = GEM_TEXTURES[k].toDataURL();
+}
+
+// Draws a power-up overlay at the current ctx origin (expected to be the
+// gem center). This mirrors the in-game draw code from prism-game.jsx so
+// tutorial gems show the identical animated sprite. `t` is seconds since
+// some fixed start (used for animation phase).
+function drawPowerupOverlay(ctx, type, px, t) {
+  if (type === "zap") {
+    ctx.save();
+    ctx.fillStyle = "rgba(0,220,255,0.35)";
+    ctx.fillRect(-3, -px * 0.4, 6, px * 0.8);
+    ctx.fillRect(-px * 0.4, -3, px * 0.8, 6);
+    ctx.fillStyle = "rgba(0,220,255,0.55)";
+    ctx.fillRect(-2, -px * 0.4, 4, px * 0.8);
+    ctx.fillRect(-px * 0.4, -2, px * 0.8, 4);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(-1, -px * 0.4, 2, px * 0.8);
+    ctx.fillRect(-px * 0.4, -1, px * 0.8, 2);
+    ctx.restore();
+    const sparkA = 0.75 + 0.25 * Math.sin(t * 6);
+    ctx.save();
+    ctx.globalAlpha = sparkA;
+    ctx.fillStyle = "rgba(0,220,255,0.85)";
+    ctx.beginPath();
+    ctx.arc(-px * 0.42, 0, 3.5, 0, Math.PI * 2);
+    ctx.arc(px * 0.42, 0, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(-px * 0.42, 0, 1.5, 0, Math.PI * 2);
+    ctx.arc(px * 0.42, 0, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else if (type === "bomb") {
+    const bp = 1 + 0.08 * Math.sin(t * 4.8);
+    const ba = 0.82 + 0.15 * Math.sin(t * 4.8);
+    ctx.save();
+    ctx.globalAlpha = ba * 0.5;
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(0, 0, px * 0.34 * bp, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = ba;
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.restore();
+  } else if (type === "inferno") {
+    drawConicRing(ctx, 0, 0, px * 0.34, px * 0.42,
+      ["#ff2200", "#ff8800", "#ffcc00", "#ff5500", "#ff2200"], 32, t * 9);
+  } else if (type === "vortex") {
+    drawConicRing(ctx, 0, 0, px * 0.36, px * 0.45,
+      ["#ff2255", "#ff8800", "#ffcc22", "#22ee88", "#2299ff", "#cc44ff"], 48, t * 14);
+    drawConicRing(ctx, 0, 0, px * 0.22, px * 0.28,
+      ["#ffcc22", "#2299ff", "#cc44ff", "#22ee88", "#ff2255"], 40, -t * 14);
+  } else if (type === "mult2" || type === "mult5" || type === "mult10") {
+    const mv = type === "mult10" ? 10 : type === "mult5" ? 5 : 2;
+    const bk = `badge_${type}`;
+    const br = px * 0.22;
+    const bx = px * 0.3, by = -px * 0.28;
+    if (GEM_TEXTURES[bk]) {
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = mv === 10 ? "#ee88ff" : mv === 5 ? "#66ddff" : "#ffd700";
+      ctx.beginPath();
+      ctx.arc(0, 0, br + 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      const tex = GEM_TEXTURES[bk];
+      const dsz = tex.width / 3;
+      ctx.drawImage(tex, -dsz / 2, -dsz / 2, dsz, dsz);
+      ctx.rotate(t * 3.9);
+      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, br - 1, 0, Math.PI * 0.7);
+      ctx.stroke();
+      ctx.restore();
+    }
+  } else if (type === "shuffle") {
+    const br = px * 0.22;
+    const bx = px * 0.3, by = -px * 0.28;
+    if (GEM_TEXTURES.badge_shuffle) {
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = "#bb44ff";
+      ctx.beginPath();
+      ctx.arc(0, 0, br + 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      const tex = GEM_TEXTURES.badge_shuffle;
+      const dsz = tex.width / 3;
+      ctx.drawImage(tex, -dsz / 2, -dsz / 2, dsz, dsz);
+      ctx.rotate(t * 3.9);
+      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, br - 1, 0, Math.PI * 0.7);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
 }
 
 // Single gem image. `hl` highlights the image for "tap this" callouts.
@@ -26,65 +132,98 @@ const G = ({ k, size = 28, hl = false }) => (
   />
 );
 
-// Gem with a matching in-game powerup overlay on top (zap/bomb/inferno/
-// multipliers/etc.). Also supports a chained overlay with a countdown number.
-const TutGem = ({ c = "r", type = "normal", locked = null, size = 36 }) => (
-  <div style={{ position: "relative", width: size, height: size, display: "inline-block" }}>
-    <img
-      src={gemDataUrls[c]}
-      alt=""
-      style={{
-        width: size,
-        height: size,
-        display: "block",
-        filter: "drop-shadow(0 2px 3px rgba(0,0,0,.4))",
-      }}
-      draggable="false"
+// Gem preview that renders to a <canvas> so tutorial previews use the EXACT
+// same sprites as the in-game draw loop (via drawPowerupOverlay, which
+// mirrors the game's per-frame overlay code). Previous CSS-based approaches
+// had cross-device rendering bugs — this is pixel-identical on every
+// screen because canvas rendering is DPR-aware and doesn't depend on font
+// metrics or CSS percentage quirks.
+const TutGem = ({ c = "r", type = "normal", locked = null, size = 36 }) => {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(size * DPR);
+    canvas.height = Math.round(size * DPR);
+    const ctx = canvas.getContext("2d");
+    let raf;
+    let running = true;
+    const startTime = performance.now();
+
+    const frame = () => {
+      if (!running) return;
+      const t = (performance.now() - startTime) / 1000;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.clearRect(0, 0, size, size);
+
+      // Base gem texture — stretched to the requested size.
+      const tex = GEM_TEXTURES[c];
+      if (tex) ctx.drawImage(tex, 0, 0, size, size);
+
+      // Scale the in-game overlay code (written in PX units) to our size.
+      if (type !== "normal") {
+        ctx.save();
+        ctx.translate(size / 2, size / 2);
+        const s = size / PX;
+        ctx.scale(s, s);
+        drawPowerupOverlay(ctx, type, PX, t);
+        ctx.restore();
+      }
+
+      // Lock overlay (kept as simple vector shapes drawn directly).
+      if (locked != null) {
+        ctx.save();
+        ctx.translate(size / 2, size / 2);
+        const s = size / 100;
+        ctx.scale(s, s);
+        ctx.fillStyle = "rgba(0,0,0,.35)";
+        ctx.beginPath();
+        ctx.arc(0, 0, 42, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#778899";
+        ctx.lineWidth = 4.5;
+        ctx.beginPath();
+        ctx.moveTo(-11, -6);
+        ctx.lineTo(-11, -14);
+        ctx.arc(0, -14, 11, Math.PI, 0);
+        ctx.lineTo(11, -6);
+        ctx.stroke();
+        ctx.fillStyle = "#556677";
+        ctx.fillRect(-19, -6, 38, 30);
+        ctx.fillStyle = "#667788";
+        ctx.fillRect(-19, -6, 38, 7);
+        ctx.fillStyle = "#222833";
+        ctx.beginPath();
+        ctx.arc(0, 9, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(-1.25, 9, 2.5, 9);
+        ctx.fillStyle = "#fff";
+        ctx.font = "900 14px Orbitron,sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(locked), 0, 40);
+        ctx.restore();
+      }
+
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => {
+      running = false;
+      cancelAnimationFrame(raf);
+    };
+  }, [c, type, locked, size]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ width: size, height: size, display: "inline-block", verticalAlign: "middle" }}
+      aria-hidden="true"
     />
-    {type === "zap" && (
-      <div className="sp-z">
-        <div className="sp-bb h" />
-        <div className="sp-bb v" />
-      </div>
-    )}
-    {type === "bomb" && <div className="sp-bm" />}
-    {type === "inferno" && <div className="sp-inf" />}
-    {type === "vortex" && (
-      <>
-        <div className="sp-vortex-outer" />
-        <div className="sp-vortex-inner" />
-      </>
-    )}
-    {type === "mult2" && <div className="sp-mult">×2</div>}
-    {type === "mult5" && <div className="sp-mult sp-mult5">×5</div>}
-    {type === "mult10" && <div className="sp-mult sp-mult10">×10</div>}
-    {type === "shuffle" && <div className="sp-shuffle">↻</div>}
-    {locked != null && (
-      <svg
-        viewBox="0 0 100 100"
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-      >
-        <circle cx="50" cy="50" r="42" fill="rgba(0,0,0,.35)" />
-        <path d="M 39 44 L 39 36 A 11 11 0 0 1 61 36 L 61 44" fill="none" stroke="#778899" strokeWidth="4.5" />
-        <rect x="31" y="44" width="38" height="30" fill="#556677" />
-        <rect x="31" y="44" width="38" height="7" fill="#667788" />
-        <circle cx="50" cy="59" r="3.5" fill="#222833" />
-        <rect x="48.75" y="59" width="2.5" height="9" fill="#222833" />
-        <text
-          x="50"
-          y="92"
-          textAnchor="middle"
-          fontSize="14"
-          fontWeight="900"
-          fill="#fff"
-          fontFamily="Orbitron,sans-serif"
-        >
-          {locked}
-        </text>
-      </svg>
-    )}
-  </div>
-);
+  );
+};
 
 // ── Per-step scenes ─────────────────────────────────────────────────────────
 
@@ -109,9 +248,27 @@ const SwapScene = () => (
   </>
 );
 
+// Inline label displayed next to a resulting powerup gem — styled like a
+// small Orbitron tag so the name is clearly paired with the icon.
+const PowerName = ({ children, color = "#cc88ff" }) => (
+  <span
+    style={{
+      fontFamily: "Orbitron,sans-serif",
+      fontSize: ".68rem",
+      fontWeight: 900,
+      letterSpacing: ".14em",
+      color,
+      textShadow: `0 0 10px ${color}`,
+      marginLeft: 6,
+    }}
+  >
+    {children}
+  </span>
+);
+
 const PowerupsScene = () => (
   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-    <div className="ts-label">match 4 · row+column clear</div>
+    <div className="ts-label">match 4 · row + column clear</div>
     <div className="ts-row">
       <G k="r" size={22} />
       <G k="r" size={22} />
@@ -119,6 +276,7 @@ const PowerupsScene = () => (
       <G k="r" size={22} />
       <span className="ts-arrow">→</span>
       <TutGem c="r" type="zap" size={32} />
+      <PowerName color="#66bbff">ZAP</PowerName>
     </div>
     <div className="ts-label">match 5 · area blast</div>
     <div className="ts-row">
@@ -129,6 +287,7 @@ const PowerupsScene = () => (
       <G k="b" size={22} />
       <span className="ts-arrow">→</span>
       <TutGem c="b" type="bomb" size={32} />
+      <PowerName color="#ffaa66">BOMB</PowerName>
     </div>
     <div className="ts-label">match 6 · burns the board</div>
     <div className="ts-row">
@@ -140,32 +299,55 @@ const PowerupsScene = () => (
       <G k="g" size={20} />
       <span className="ts-arrow">→</span>
       <TutGem c="g" type="inferno" size={32} />
+      <PowerName color="#ff8844">INFERNO</PowerName>
+    </div>
+    <div className="ts-label">match 7+ · clears the board</div>
+    <div className="ts-row">
+      <G k="p" size={18} />
+      <G k="p" size={18} />
+      <G k="p" size={18} />
+      <G k="p" size={18} />
+      <G k="p" size={18} />
+      <G k="p" size={18} />
+      <G k="p" size={18} />
+      <span className="ts-arrow">→</span>
+      <TutGem c="p" type="vortex" size={32} />
+      <PowerName color="#ee88ff">VORTEX</PowerName>
     </div>
   </div>
 );
 
 const SpecialsScene = () => (
   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-    <div className="ts-row" style={{ gap: 12 }}>
+    <div className="ts-label">random drops — match to activate</div>
+    <div className="ts-row" style={{ gap: 14 }}>
       <div style={{ textAlign: "center" }}>
-        <TutGem c="y" type="mult2" size={32} />
-        <div className="ts-label">score ×2</div>
+        <TutGem c="y" type="mult2" size={36} />
+        <div className="ts-label" style={{ fontWeight: 700, color: "#ffcc44" }}>
+          MULT ×2
+        </div>
       </div>
       <div style={{ textAlign: "center" }}>
-        <TutGem c="b" type="mult5" size={32} />
-        <div className="ts-label">score ×5</div>
+        <TutGem c="b" type="mult5" size={36} />
+        <div className="ts-label" style={{ fontWeight: 700, color: "#66ccff" }}>
+          MULT ×5
+        </div>
       </div>
       <div style={{ textAlign: "center" }}>
-        <TutGem c="p" type="mult10" size={32} />
-        <div className="ts-label">score ×10</div>
+        <TutGem c="p" type="mult10" size={36} />
+        <div className="ts-label" style={{ fontWeight: 700, color: "#ee88ff" }}>
+          MULT ×10
+        </div>
       </div>
       <div style={{ textAlign: "center" }}>
-        <TutGem c="r" type="shuffle" size={32} />
-        <div className="ts-label">shuffle</div>
+        <TutGem c="r" type="shuffle" size={36} />
+        <div className="ts-label" style={{ fontWeight: 700, color: "#cc88ff" }}>
+          SHUFFLE
+        </div>
       </div>
     </div>
     <div className="ts-label" style={{ marginTop: 6 }}>
-      prism + any color = full color wipe
+      PRISM + any color = full color wipe
     </div>
     <div className="ts-row">
       <G k="w" size={36} hl />
@@ -174,7 +356,7 @@ const SpecialsScene = () => (
       <span className="ts-arrow">→</span>
       <span className="ts-result">clears all blue!</span>
     </div>
-    <div className="ts-label">prism + prism = board wipe + 100K bonus</div>
+    <div className="ts-label">PRISM + PRISM = board wipe + 100K bonus</div>
     <div className="ts-row">
       <G k="w" size={32} hl />
       <span className="ts-arrow">+</span>
@@ -246,7 +428,7 @@ const SurviveScene = () => (
         🔥 FEVER ×3
       </div>
     </div>
-    <div className="ts-label">4 cascades fast = fever mode · triple score · bonus time</div>
+    <div className="ts-label">4 cascades fast = fever mode · 3× score · timer freezes</div>
   </div>
 );
 
