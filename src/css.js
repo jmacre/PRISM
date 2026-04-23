@@ -177,7 +177,7 @@ export const CSS = `
 .menu-link{background:none;border:none;color:#6a4a8c;font-size:.65rem;letter-spacing:.14em;cursor:pointer;text-transform:uppercase;padding:10px;font-family:'Inter',sans-serif;}
 /* Keeps "How to Play" + "About" tightly grouped. margin-top:auto pushes the
    group to the bottom of the menu flex column, separating it from PLAY. */
-.menu-footer{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:auto;}
+.menu-footer{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:auto;margin-bottom:60px;}
 .menu-link:hover{color:#aa88cc;}
 
 /* Tutorial */
