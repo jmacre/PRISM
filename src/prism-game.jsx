@@ -161,6 +161,11 @@ export default function PrismGame() {
       const tempoFrac = Math.max(0, Math.min(1, (maxMs - 1500) / (14000 - 1500)));
       AUDIO.setTempo(Math.round(118 + 37 * (1 - tempoFrac)));
 
+      // Defensive clamp: if remainingRef somehow exceeds maxMs (e.g. a
+      // bonus/milestone/fever top-up was capped to an older maxMs that
+      // has since decayed), pull it down so the bar can't stay at 100%
+      // while the number reads a value larger than the current max.
+      if (remainingRef.current > maxMs) remainingRef.current = maxMs;
       const remain = remainingRef.current;
       const frac = Math.max(0, Math.min(1, remain / maxMs));
       const isFever = feverRef.current;
