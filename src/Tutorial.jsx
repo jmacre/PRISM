@@ -498,12 +498,14 @@ export function Tutorial({ tutStep, onNext, onBack }) {
         <TutScene type={s.t} />
         {s.b && <div className="tut-body">{s.b}</div>}
       </div>
-      <button className="menu-btn" onClick={onNext}>
-        {isLast ? "START" : "NEXT"}
-      </button>
-      <button className="menu-link" onClick={onBack}>
-        ← Back
-      </button>
+      <div className="tut-nav">
+        <button className="menu-link" onClick={onBack}>
+          ← BACK
+        </button>
+        <button className="menu-btn" onClick={onNext}>
+          {isLast ? "START" : "NEXT"}
+        </button>
+      </div>
     </div>
   );
 }
