@@ -111,6 +111,20 @@ export function drawConicRing(ctx, cx, cy, rInner, rOuter, colors, slices, rot) 
 // Also contains `glow_<c>` halos and `badge_mult2/5/10/shuffle` overlays.
 export const GEM_TEXTURES = {};
 
+// Subscribers fired whenever a texture is replaced at runtime (currently
+// just the prism texture, which gets swapped from the polygon fallback
+// to the app-icon PNG when the image finishes loading).
+const textureListeners = new Set();
+export function onTexturesChanged(cb) {
+  textureListeners.add(cb);
+  return () => textureListeners.delete(cb);
+}
+function notifyTextureChange() {
+  for (const cb of textureListeners) {
+    try { cb(); } catch {}
+  }
+}
+
 // Build every cached texture. Called once at module load — if this is ever
 // hit twice (e.g. HMR) the canvases simply get replaced in-place.
 export function buildGemTextures() {
@@ -347,6 +361,7 @@ function buildWildcardTexture(SZ) {
         ictx.globalCompositeOperation = "source-over";
 
         GEM_TEXTURES.w = iconCanvas;
+        notifyTextureChange();
       } catch {
         // Silent fallback — polygon version remains in place.
       }

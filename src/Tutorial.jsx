@@ -5,15 +5,41 @@
 // main game. All tutorial-specific gem previews live here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { COLORS, PX } from "./constants.js";
-import { GEM_TEXTURES, drawConicRing } from "./gemTextures.js";
+import { GEM_TEXTURES, drawConicRing, onTexturesChanged } from "./gemTextures.js";
 
 // Tutorial previews render gems as plain <img> tags with data-URL sources.
 // Building these once up-front is cheaper than rendering the full canvas.
+// We keep the map mutable so it can be refreshed when a texture is swapped
+// at runtime (e.g. the prism PNG finishing its async load) — see the
+// useGemDataUrls hook used by the <G> component below.
 const gemDataUrls = {};
-for (const k of [...COLORS, "w"]) {
-  if (GEM_TEXTURES[k]) gemDataUrls[k] = GEM_TEXTURES[k].toDataURL();
+function refreshGemDataUrls() {
+  for (const k of [...COLORS, "w"]) {
+    if (GEM_TEXTURES[k]) gemDataUrls[k] = GEM_TEXTURES[k].toDataURL();
+  }
+}
+refreshGemDataUrls();
+// Bump whenever textures change so React components can invalidate.
+let gemDataUrlsVersion = 0;
+onTexturesChanged(() => {
+  refreshGemDataUrls();
+  gemDataUrlsVersion++;
+});
+
+// Hook that returns a bump counter — components using gemDataUrls can
+// depend on it to re-render when a texture is replaced.
+function useGemDataUrlsVersion() {
+  const [, setV] = useState(gemDataUrlsVersion);
+  useEffect(() => {
+    // Poll briefly at mount in case a texture update landed between
+    // module load and this hook running (async PNG loads are fast but
+    // not instantaneous).
+    if (setV.__current !== gemDataUrlsVersion) setV(gemDataUrlsVersion);
+    const unsubscribe = onTexturesChanged(() => setV(gemDataUrlsVersion));
+    return unsubscribe;
+  }, []);
 }
 
 // Draws a power-up overlay at the current ctx origin (expected to be the
@@ -122,15 +148,20 @@ function drawPowerupOverlay(ctx, type, px, t) {
 }
 
 // Single gem image. `hl` highlights the image for "tap this" callouts.
-const G = ({ k, size = 28, hl = false }) => (
-  <img
-    src={gemDataUrls[k]}
-    alt=""
-    className={hl ? "ts-highlight" : ""}
-    style={{ width: size, height: size, display: "block" }}
-    draggable="false"
-  />
-);
+// Subscribes to texture changes so the prism image updates from its
+// polygon fallback to the real app-icon PNG once that PNG loads.
+const G = ({ k, size = 28, hl = false }) => {
+  useGemDataUrlsVersion();
+  return (
+    <img
+      src={gemDataUrls[k]}
+      alt=""
+      className={hl ? "ts-highlight" : ""}
+      style={{ width: size, height: size, display: "block" }}
+      draggable="false"
+    />
+  );
+};
 
 // Gem preview that renders to a <canvas> so tutorial previews use the EXACT
 // same sprites as the in-game draw loop (via drawPowerupOverlay, which
