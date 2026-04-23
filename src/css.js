@@ -185,7 +185,7 @@ export const CSS = `
 /* Nav row anchored to the bottom so BACK / NEXT don't shift between
    steps as the card contents change size. Capped width so the buttons
    sit a reasonable distance apart instead of hugging the screen edges. */
-.tut-nav{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;width:100%;max-width:320px;gap:24px;padding:0 16px;}
+.tut-nav{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(120px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;width:100%;max-width:320px;gap:24px;padding:0 16px;}
 .tut-card{max-width:340px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;}
 .tut-num{font-family:'Orbitron',sans-serif;font-size:.65rem;color:#664488;letter-spacing:.2em;margin-bottom:8px;}
 .tut-title{font-family:'Orbitron',sans-serif;font-size:1.2rem;font-weight:900;color:#cc88ff;letter-spacing:.1em;margin-bottom:12px;text-shadow:0 0 18px rgba(200,100,255,.6);}
