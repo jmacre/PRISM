@@ -194,10 +194,11 @@ export default function PrismGame() {
         const display = barDisplayRef.current;
         let next;
         if (target > display + 0.005) {
-          // Refill — ease up by ~9% of remaining gap each frame
-          // (≈25-frame settle, ~415 ms at 60 FPS) so addBonus / fever
-          // top-ups visibly glide instead of snapping.
-          next = display + (target - display) * 0.09;
+          // Refill — ease up by ~3% of remaining gap each frame, so
+          // addBonus / milestone / fever top-ups visibly glide for
+          // about a second before settling. Lower this number for a
+          // slower glide, raise it for a snappier one.
+          next = display + (target - display) * 0.03;
           if (next > target - 0.002) next = target;
         } else {
           // Drain / hold — match exactly.
