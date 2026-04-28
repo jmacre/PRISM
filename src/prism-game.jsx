@@ -857,9 +857,13 @@ export default function PrismGame() {
           const { r, c } = parseKey(k);
           next[r][c] = null;
         }
+        const spawnT = performance.now();
         for (const sp of toCreate) {
           if (next[sp.r][sp.c] === null) {
-            next[sp.r][sp.c] = { c: sp.color, type: sp.type, id: nextId() };
+            // spawnAt is read by the draw loop to play a brief
+            // pop-in / glow animation so power-ups don't just
+            // appear instantly when they're formed.
+            next[sp.r][sp.c] = { c: sp.color, type: sp.type, id: nextId(), spawnAt: spawnT };
           }
         }
 
@@ -1529,6 +1533,29 @@ export default function PrismGame() {
               alpha = Math.min(1, p * 2.5);
             }
           }
+          // Powerup spawn animation — when a special gem is freshly
+          // formed via match, scale-pop + brief glow over ~400 ms so it
+          // doesn't just appear instantly. Only fires once per gem
+          // (the spawnAt timestamp is set in cascade's finalize).
+          let spawnFlash = 0;
+          if (g.spawnAt) {
+            const spawnAge = (performance.now() - g.spawnAt) / 1000;
+            const spawnDur = 0.4;
+            if (spawnAge < spawnDur) {
+              const p = Math.min(1, spawnAge / spawnDur);
+              // Pop curve: 0 → 1.25 → 1.0 (ease-out overshoot)
+              if (p < 0.5) {
+                const a = p / 0.5;
+                scale *= 1 + 0.25 * (a * (2 - a));
+              } else {
+                const a = (p - 0.5) / 0.5;
+                scale *= 1.25 - 0.25 * a;
+              }
+              spawnFlash = 1 - p;
+            } else {
+              g.spawnAt = null; // one-shot — clear so it doesn't replay
+            }
+          }
           // Existing gems that dropped — smooth fall
           const dropDist = dropsRef.current[key];
           if (!isFresh && dropDist && dropDist > 0) {
@@ -1610,6 +1637,15 @@ export default function PrismGame() {
           if (glowTex) {
             const gs2 = glowTex.width * glowScale;
             ctx.drawImage(glowTex, -gs2 / 2, -gs2 / 2, gs2, gs2);
+          }
+          // Powerup spawn flash — bright white halo behind the gem that
+          // fades over the spawn animation duration.
+          if (spawnFlash > 0) {
+            ctx.globalAlpha = alpha * spawnFlash * 0.85;
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(0, 0, PX * (0.5 + 0.25 * spawnFlash), 0, Math.PI * 2);
+            ctx.fill();
           }
           // Prism aura — rainbow conic ring that slowly rotates, plus
           // orbiting sparkle dots. The ring is the signature "this is a
