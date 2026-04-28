@@ -1507,9 +1507,9 @@ export default function PrismGame() {
           // Drop animation — smooth bounce landing (new gems)
           if (isFresh) {
             if (!freshStart.current) freshStart.current = now; // sync to first actual draw frame
-            const delay = r * 0.05;
+            const delay = r * 0.04;
             const elapsed = Math.max(0, (now - freshStart.current) / 1000 - delay);
-            const dur = 0.62;
+            const dur = 0.42;
             if (elapsed < dur) {
               const p = Math.min(1, elapsed / dur);
               let ease;
