@@ -1512,29 +1512,23 @@ export default function PrismGame() {
             const dur = 0.62;
             if (elapsed < dur) {
               const p = Math.min(1, elapsed / dur);
-              let ease;
-              if (p < 0.6) {
-                ease = p / 0.6;
-                ease = ease * ease * (3 - 2 * ease);
-              } else if (p < 0.8) {
-                const b2 = (p - 0.6) / 0.2;
-                ease = 1 + 0.08 * Math.sin(b2 * Math.PI);
-              } else {
-                const b2 = (p - 0.8) / 0.2;
-                ease = 1 + 0.08 * (1 - b2) * Math.sin(Math.PI);
-              }
-              // Fall distance scales with row: every fresh gem starts
-              // ~1 cell above the top of the board, so deeper rows
-              // have further to fall instead of all snapping in from
-              // 72 px above their target.
+              // Gravity-style fall: quadratic acceleration so velocity
+              // peaks AT the landing instead of easing-out into a snap.
+              // First 85 % of the duration is the fall; the last 15 %
+              // is a small landing squish on the scale.
               const fromY = PAD - CELL;
-              y = fromY + (y - fromY) * ease;
-              scale = 0.7 + (1 - 0.7) * Math.min(1, ease);
-              if (p > 0.55 && p < 0.75) {
-                const sq = (p - 0.55) / 0.2;
-                scale = 1 + 0.06 * Math.sin(sq * Math.PI);
+              if (p < 0.85) {
+                const fp = p / 0.85;
+                const ease = fp * fp;
+                y = fromY + (y - fromY) * ease;
+                scale = 0.85 + 0.15 * fp;
+              } else {
+                // Landing squish — position is at target, just compress
+                // the scale briefly for an "impact" cue.
+                const sq = (p - 0.85) / 0.15;
+                scale = 1 - 0.08 * Math.sin(sq * Math.PI);
               }
-              alpha = Math.min(1, p * 2.5);
+              alpha = Math.min(1, p * 3);
             }
           }
           // Powerup spawn animation — when a special gem is freshly
