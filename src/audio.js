@@ -556,12 +556,16 @@ export const AUDIO = (() => {
         sn(2600, 0.02, 0.03, "sine", t, 1400);
       }
       if (type === "playStart") {
-        // PLAY button — short and snappy. The screen transitions to
-        // gameplay almost immediately, so a long chime gets clipped or
-        // muddied by the in-game music starting. Total ~180 ms.
-        sn(440.00, 0.16, 0.15, "triangle", t + 0.00, 440.00); // A4
-        sn(659.25, 0.18, 0.11, "triangle", t + 0.04, 659.25); // E5 5th
-        sn(880.00, 0.14, 0.07, "sine", t + 0.08, 880.00);     // A5 sparkle
+        // PLAY chime — quick rising C-major triad (C5 → E5 → G5)
+        // landing on the 5th, plus a held G5 root that rings out for
+        // the full duration. Pure sine fundamentals with a triangle
+        // overlay on the landing note give it a chime/bell character
+        // that's musical but not muddy. Total chime ~250 ms; the menu
+        // delays the screen transition to give it room to land.
+        sn(523.25, 0.10, 0.13, "sine", t + 0.00, 523.25);     // C5 pickup
+        sn(659.25, 0.10, 0.13, "sine", t + 0.07, 659.25);     // E5
+        sn(783.99, 0.30, 0.15, "triangle", t + 0.14, 783.99); // G5 landing (held)
+        sn(1567.98, 0.18, 0.05, "sine", t + 0.16, 1567.98);   // G6 sparkle (octave above landing)
       }
       if (type === "clack") {
         // Mid-range knock. Fast pitch sweep (700→200 Hz in ~50 ms) gives
