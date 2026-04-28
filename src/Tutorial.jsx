@@ -459,7 +459,7 @@ const SurviveScene = () => (
         🔥 FEVER ×3
       </div>
     </div>
-    <div className="ts-label">4 cascades fast = fever mode · 3× score · timer freezes</div>
+    <div className="ts-label">5 cascades fast = fever mode · 3× score · timer freezes</div>
   </div>
 );
 

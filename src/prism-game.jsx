@@ -455,7 +455,7 @@ export default function PrismGame() {
   // Fever triggers when a cascade reaches 4+ levels deep
   const checkFever = useCallback(
     cascadeLevel => {
-      if (cascadeLevel >= 4 && !feverRef.current) triggerFever();
+      if (cascadeLevel >= 5 && !feverRef.current) triggerFever();
     },
     [triggerFever]
   );
