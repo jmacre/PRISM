@@ -387,8 +387,11 @@ export default function PrismGame() {
       setTutStep(0);
       return;
     }
-    // Smooth menu → game transition: fade a black overlay IN (~280 ms),
-    // swap screens under cover of the black, then fade it back OUT.
+    // Smooth menu → game transition: fade a black overlay IN, swap
+    // screens under cover of the black, then fade it back OUT. Hold
+    // is long enough that the PLAY chime gets to land before the
+    // game music starts — chime plays solo during the fade-to-black,
+    // game appears as it fades back out.
     setTransitioning(true);
     setTimeout(() => {
       wipeRunState();
@@ -400,7 +403,7 @@ export default function PrismGame() {
       // Clear the overlay on the next frame so CSS sees an opacity change
       // and transitions back out instead of snapping.
       requestAnimationFrame(() => setTransitioning(false));
-    }, 280);
+    }, 500);
   }, []);
 
   const finishTutorial = useCallback(() => {

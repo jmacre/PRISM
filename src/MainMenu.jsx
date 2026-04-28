@@ -33,13 +33,10 @@ export function MainMenu({ best, onPlay, onOpenTutorial, showAbout, onOpenAbout,
         onClick={() => {
           // Unique "launch" SFX instead of the generic UI click so the
           // PLAY press feels like the start of a run, not a menu tap.
-          // Delay onPlay by ~280 ms so the chime gets to land before the
-          // screen transition fires — without it the sound was getting
-          // cut off / muddied by the game audio kicking in.
           AUDIO.init();
           AUDIO.resumeAll();
           AUDIO.sfx("playStart");
-          setTimeout(onPlay, 280);
+          onPlay();
         }}
       >
         ▶ PLAY
