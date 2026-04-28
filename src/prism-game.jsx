@@ -74,6 +74,11 @@ export default function PrismGame() {
   const [musicMuted, setMusicMuted] = useState(() => STORAGE.get("prism_music_muted", false));
   // True while a black overlay is fading in or out to mask a screen change.
   const [transitioning, setTransitioning] = useState(false);
+  // True while the game→menu fade is in flight. Used to keep an empty
+  // dim overlay over the board during the fade so the board doesn't
+  // 'light back up' between unmounting the pause overlay and the
+  // fade-to-black fully covering the screen.
+  const [quittingGame, setQuittingGame] = useState(false);
   const [sfxMuted, setSfxMuted] = useState(() => STORAGE.get("prism_sfx_muted", false));
   const [hapticsMuted, setHapticsMuted] = useState(() => STORAGE.get("prism_haptics_muted", false));
 
@@ -420,15 +425,15 @@ export default function PrismGame() {
   }, []);
 
   const backToMenu = useCallback(() => {
-    // Tear down the pause overlay BEFORE the fade-to-black starts —
-    // otherwise the overlay flashes back to its main "PAUSED" screen
-    // (because onPauseConfirm cleared confirmAction first) for the
-    // ~280 ms it takes the black overlay to fade in over it.
+    // Tear down the pause overlay (it would flash back to its main
+    // "PAUSED" screen during the fade because onPauseConfirm clears
+    // confirmAction first) and replace it with a content-less dim
+    // overlay (`quittingGame`) so the board stays dark instead of
+    // 'lighting back up' while the fade-to-black is rising.
     setPaused(false);
     setConfirmAction(null);
     pausedRef.current = false;
-    // Symmetric fade-through-black: music stops immediately, fade in
-    // black, swap screen + state under cover, fade back out.
+    setQuittingGame(true);
     AUDIO.stopMusic();
     setTransitioning(true);
     setTimeout(() => {
@@ -438,6 +443,7 @@ export default function PrismGame() {
       musicReady.current = false;
       setBest(loadBest());
       setScreen("menu");
+      setQuittingGame(false);
       requestAnimationFrame(() => setTransitioning(false));
     }, 350);
   }, []);
@@ -1137,7 +1143,10 @@ export default function PrismGame() {
   const ensureAudio = () => {
     AUDIO.init();
     if (!audioInited.current) {
-      AUDIO.setMusicMuted(musicMuted);
+      // Pass autoPlay=false: just sync the mute preference, don't kick
+      // music playback as a side effect. Music start is handled
+      // explicitly by startGame / forceStart at the right moment.
+      AUDIO.setMusicMuted(musicMuted, false);
       AUDIO.setSfxMuted(sfxMuted);
       audioInited.current = true;
     }
@@ -2554,6 +2563,10 @@ export default function PrismGame() {
               hapticsMuted={hapticsMuted}
             />
           )}
+          {/* Empty dim overlay during game→menu fade so the board stays
+              dark instead of flashing bright between the pause overlay
+              unmounting and the black fade-to-menu fully covering. */}
+          {quittingGame && !gameOver && <div className="overlay" />}
         </div>
         {/* Score floaters live OUTSIDE .pg (which clips its overflow)
             so a big +N number near the board's edge isn't cut off.

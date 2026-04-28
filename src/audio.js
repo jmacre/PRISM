@@ -291,11 +291,17 @@ export const AUDIO = (() => {
       }
     },
 
-    setMusicMuted(v) {
+    // `autoPlay` controls the side effect of un-muting: by default,
+    // un-muting starts music playback (used by the pause-menu MUSIC
+    // toggle so the player gets sound back immediately). Pass false
+    // to apply the saved mute preference WITHOUT starting playback —
+    // we want that during initial wiring on the menu screen, otherwise
+    // the music would kick in the instant the audio context is built.
+    setMusicMuted(v, autoPlay = true) {
       _musicMuted = v;
       try {
         if (v) musicEl?.pause();
-        else if (ctx) _playMusic();
+        else if (ctx && autoPlay) _playMusic();
       } catch {}
     },
 
