@@ -2469,17 +2469,6 @@ export default function PrismGame() {
             onTouchEnd={handleCanvasTouchEnd}
           />
 
-          {/* Floating score popups — kept as DOM (few, short-lived) */}
-          {floaters.map(f => (
-            <div
-              key={f.id}
-              className={`floater ${f.type}${f.size ? " " + f.size : ""}`}
-              style={{ left: f.px + PAD, top: f.py + PAD, transform: "translateX(-50%)" }}
-            >
-              {f.text}
-            </div>
-          ))}
-
           {gameOver && (
             <GameOverOverlay
               goReason={goReason}
@@ -2510,6 +2499,19 @@ export default function PrismGame() {
             />
           )}
         </div>
+        {/* Score floaters live OUTSIDE .pg (which clips its overflow)
+            so a big +N number near the board's edge isn't cut off.
+            .board-wrap is position:relative and has the same dimensions
+            as .pg, so the existing px/py + PAD coords still align. */}
+        {floaters.map(f => (
+          <div
+            key={f.id}
+            className={`floater ${f.type}${f.size ? " " + f.size : ""}`}
+            style={{ left: f.px + PAD, top: f.py + PAD, transform: "translateX(-50%)" }}
+          >
+            {f.text}
+          </div>
+        ))}
       </div>
       {transitionOverlay}
     </div>
