@@ -472,8 +472,28 @@ export default function PrismGame() {
     let size = "";
     if (value >= 20000) size = "huge";
     else if (value >= 5000) size = "big";
+
+    // Clamp px so the floater (which is centred on this point with
+    // translateX(-50%)) keeps a safe padding from the viewport edges.
+    // Without this, big/huge popups near board edges can clip against
+    // .pa's overflow-x:hidden when the screen is narrow.
+    let clampedPx = px;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect && rect.width > 0) {
+      const scale = rect.width / CW;
+      // Half-widths are conservative estimates based on the size tier;
+      // text is monospaced-ish Orbitron at roughly these character counts.
+      const halfW = size === "huge" ? 110 : size === "big" ? 75 : 50;
+      const screenMargin = 12;
+      const screenX = rect.left + (px + PAD) * scale;
+      const minScreenX = screenMargin + halfW;
+      const maxScreenX = window.innerWidth - screenMargin - halfW;
+      if (screenX < minScreenX) clampedPx = (minScreenX - rect.left) / scale - PAD;
+      else if (screenX > maxScreenX) clampedPx = (maxScreenX - rect.left) / scale - PAD;
+    }
+
     setFloaters(f => {
-      const entry = { id, text, px, py, type, size };
+      const entry = { id, text, px: clampedPx, py, type, size };
       return f.length >= FLOATER_CAP ? [...f.slice(1), entry] : [...f, entry];
     });
     setTimeout(() => setFloaters(f => f.filter(x => x.id !== id)), 1200);
