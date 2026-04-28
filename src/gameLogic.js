@@ -32,7 +32,7 @@ export const mkGem = (c, bonus = false) => {
     else if (r < 0.012) g.type = "mult5";
     else if (r < 0.052) g.type = "mult2";
     else if (r < 0.062) g.type = "shuffle";
-    else if (r < 0.50) g.c = "w"; // TEMP TESTING: prism super common (was 0.065)
+    else if (r < 0.065) g.c = "w"; // wildcard — rare (~0.3%)
   }
   return g;
 };
