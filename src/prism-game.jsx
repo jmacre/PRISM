@@ -1523,7 +1523,11 @@ export default function PrismGame() {
                 const b2 = (p - 0.8) / 0.2;
                 ease = 1 + 0.08 * (1 - b2) * Math.sin(Math.PI);
               }
-              const fromY = y - 72;
+              // Fall distance scales with row: every fresh gem starts
+              // ~1 cell above the top of the board, so deeper rows
+              // have further to fall instead of all snapping in from
+              // 72 px above their target.
+              const fromY = PAD - CELL;
               y = fromY + (y - fromY) * ease;
               scale = 0.7 + (1 - 0.7) * Math.min(1, ease);
               if (p > 0.55 && p < 0.75) {
