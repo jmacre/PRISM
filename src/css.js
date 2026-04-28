@@ -96,6 +96,11 @@ export const CSS = `
 .floater.bomb{color:#ffaa66;}
 .floater.zap{color:#66bbff;}
 .floater.normal{color:#cc88ff;}
+/* Big-score tier — reddish-orange, larger. Wins over the type-class
+   color via specificity (later in the cascade). */
+.floater.big{color:#ff5522;font-size:1.3rem;font-weight:900;text-shadow:0 0 14px #ff6633,0 0 4px #ffaa44;}
+/* Huge-score tier — even bigger, white. */
+.floater.huge{color:#ffffff;font-size:1.8rem;font-weight:900;text-shadow:0 0 18px #ffffff,0 0 8px #ff8844,0 0 28px #ff4422;letter-spacing:.04em;}
 @keyframes floatUp{0%{transform:translateY(0) scale(1);opacity:1;}40%{opacity:1;}100%{transform:translateY(-70px) scale(.75);opacity:0;}}
 
 /* Pause / game-over overlay. Keep the backdrop blur STATIC and the fade

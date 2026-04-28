@@ -465,10 +465,15 @@ export default function PrismGame() {
   // FLOATER_CAP so long cascades don't balloon the DOM; when full we drop
   // the oldest entry.
   const FLOATER_CAP = 20;
-  const addFloater = useCallback((text, px, py, type) => {
+  // `value` (optional) is the numeric points awarded — used to tier the
+  // floater visually so big and huge scores stand out.
+  const addFloater = useCallback((text, px, py, type, value = 0) => {
     const id = Date.now() + Math.random();
+    let size = "";
+    if (value >= 20000) size = "huge";
+    else if (value >= 5000) size = "big";
     setFloaters(f => {
-      const entry = { id, text, px, py, type };
+      const entry = { id, text, px, py, type, size };
       return f.length >= FLOATER_CAP ? [...f.slice(1), entry] : [...f, entry];
     });
     setTimeout(() => setFloaters(f => f.filter(x => x.id !== id)), 1200);
@@ -688,7 +693,7 @@ export default function PrismGame() {
         feverRef.current && !specTypes.length
           ? `🔥+${totalPts.toLocaleString()}`
           : `+${totalPts.toLocaleString()}`;
-      addFloater(floatText, px, py, floatType);
+      addFloater(floatText, px, py, floatType, totalPts);
 
       // Apply the (single) total score increment.
       setScore(s => {
@@ -2468,7 +2473,7 @@ export default function PrismGame() {
           {floaters.map(f => (
             <div
               key={f.id}
-              className={`floater ${f.type}`}
+              className={`floater ${f.type}${f.size ? " " + f.size : ""}`}
               style={{ left: f.px + PAD, top: f.py + PAD, transform: "translateX(-50%)" }}
             >
               {f.text}
