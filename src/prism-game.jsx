@@ -892,7 +892,10 @@ export default function PrismGame() {
       const sw = board.map(r => [...r]);
       const gem1 = sw[r1][c1],
         gem2 = sw[r2][c2];
-      // Double prism merge — clear entire board + massive bonus
+      // Double prism merge — clear entire board + massive bonus.
+      // Animate as a regular swap (both prisms trade places visually)
+      // before the board-clear effect fires, with a rainbow trail
+      // streaming behind the swiped prism.
       if (gem1?.c === "w" && gem2?.c === "w") {
         movesRef.current += 1;
         startedRef.current = true;
@@ -902,21 +905,17 @@ export default function PrismGame() {
         setSel(null);
         setBusy(true);
         busyRef.current = true;
-        // Slide the swiped prism toward the other prism first. hiddenCellsRef
-        // is a Set keyed by "r,c" so the draw loop can do O(1) lookups.
-        hiddenCellsRef.current = new Set([`${r1},${c1}`, `${r2},${c2}`]);
-        prismSlideRef.current = {
-          fromR: r1,
-          fromC: c1,
-          toR: r2,
-          toC: c2,
+        swapAnimRef.current = {
+          r1, c1, r2, c2,
           start: performance.now(),
-          dur: 200,
-          gemColor: "w",
+          dur: 150,
+          prismFromR: r1,
+          prismFromC: c1,
+          prismToR: r2,
+          prismToC: c2,
         };
         pauseAwareTimeout(() => {
-          prismSlideRef.current = null;
-          hiddenCellsRef.current = null;
+          swapAnimRef.current = null;
           AUDIO.sfx("doublePrism");
           HAPTICS.fire("doublePrism");
           showBanner("\u2726\u2726 DOUBLE PRISM!! \u2726\u2726", "vortex", 3000, 99);
@@ -997,41 +996,36 @@ export default function PrismGame() {
             : prismGem?.type && prismGem.type !== "normal"
               ? prismGem.type
               : "normal";
-        // Build board with both cells nulled (invisible) but wasWild marker for cascade
-        const finalBoard = board.map(row => [...row]);
-        finalBoard[r1][c1] = null;
-        finalBoard[r2][c2] = null;
-        // Store wasWild info in a hidden cell that cascade will find
-        // Place it at prismPos temporarily — it'll be consumed by cascade immediately
+        // Post-swap board: prism (with wildcard marker for the cascade)
+        // ends up at the gem's old cell, the gem ends up at the prism's
+        // old cell. Cascade then color-wipes everything matching gemColor
+        // and triggers any absorbed powerup.
         const cascadeBoard = board.map(row => [...row]);
-        cascadeBoard[gemPos.r][gemPos.c] = null;
-        cascadeBoard[prismPos.r][prismPos.c] = {
+        cascadeBoard[prismPos.r][prismPos.c] = nonPrismGem;
+        cascadeBoard[gemPos.r][gemPos.c] = {
           c: gemColor,
           wasWild: true,
           type: targetPowerup,
           id: nextId(),
         };
-        // Hide both cells via a "r,c" Set so the draw loop can O(1) skip them.
-        hiddenCellsRef.current = new Set([`${r1},${c1}`, `${r2},${c2}`]);
-        // Animate swiped gem sliding toward target
-        const slideTexColor = gem1?.c === "w" ? "w" : gem1.c;
-        prismSlideRef.current = {
-          fromR: r1,
-          fromC: c1,
-          toR: r2,
-          toC: c2,
+        // Use the regular swap animation — the prism and the absorbed
+        // gem visually trade places, no destroy effect. The rainbow
+        // trail still streams behind the prism via the prism* fields
+        // on swapAnimRef (read in the draw loop).
+        swapAnimRef.current = {
+          r1, c1, r2, c2,
           start: performance.now(),
-          dur: 200,
-          gemColor: slideTexColor,
+          dur: 150,
+          prismFromR: prismPos.r,
+          prismFromC: prismPos.c,
+          prismToR: gemPos.r,
+          prismToC: gemPos.c,
         };
-        // After slide, both disappear — set nulled board then cascade with wasWild board
         pauseAwareTimeout(() => {
-          prismSlideRef.current = null;
-          hiddenCellsRef.current = null;
-          setBoard(finalBoard); // both cells null — nothing visible
-          // Cascade uses the board with wasWild marker so it triggers the color clear
+          swapAnimRef.current = null;
+          setBoard(cascadeBoard);
           pauseAwareTimeout(() => cascade(cascadeBoard, 1), 40);
-        }, 220);
+        }, 160);
         return;
       }
       // Normal swap — speculatively swap and check if it produces a match.
@@ -1791,6 +1785,87 @@ export default function PrismGame() {
         ctx.fillRect(0, 0, CW, CH);
         ctx.restore();
       }
+      // Rainbow trail helper — used by BOTH the double-prism slide
+      // (prismSlideRef) and the prism+color swap (swapAnimRef with
+      // prism* fields). Draws a rainbow ribbon from (sx,sy) to (fx,fy)
+      // with the same layered look (outer glow → main band → white
+      // core → sparkles). pP is the animation's progress (0–1) for
+      // tail fade.
+      const drawPrismTrail = (sx, sy, fx, fy, pP) => {
+        const dxSlide = fx - sx;
+        const dySlide = fy - sy;
+        const horizontal = Math.abs(dxSlide) >= Math.abs(dySlide);
+        const nx = horizontal ? 0 : 1;
+        const ny = horizontal ? 1 : 0;
+        const WIDTH = 22;
+        const g0x = sx - nx * (WIDTH / 2);
+        const g0y = sy - ny * (WIDTH / 2);
+        const g1x = sx + nx * (WIDTH / 2);
+        const g1y = sy + ny * (WIDTH / 2);
+        const rbw = ctx.createLinearGradient(g0x, g0y, g1x, g1y);
+        rbw.addColorStop(0.00, "#ff3d7f");
+        rbw.addColorStop(0.18, "#ff8833");
+        rbw.addColorStop(0.36, "#ffe400");
+        rbw.addColorStop(0.54, "#36d96b");
+        rbw.addColorStop(0.72, "#3f9ffc");
+        rbw.addColorStop(0.90, "#a248ff");
+        rbw.addColorStop(1.00, "#ff4db2");
+        const fadeGrad = ctx.createLinearGradient(sx, sy, fx, fy);
+        fadeGrad.addColorStop(0, "rgba(255,255,255,0.55)");
+        fadeGrad.addColorStop(1, "rgba(255,255,255,1)");
+        const drawRibbon = w => {
+          ctx.beginPath();
+          ctx.moveTo(sx - nx * (w / 2), sy - ny * (w / 2));
+          ctx.lineTo(fx - nx * (w / 2), fy - ny * (w / 2));
+          ctx.lineTo(fx + nx * (w / 2), fy + ny * (w / 2));
+          ctx.lineTo(sx + nx * (w / 2), sy + ny * (w / 2));
+          ctx.closePath();
+          ctx.fill();
+        };
+        ctx.save();
+        ctx.globalAlpha = (1 - pP * 0.2) * 0.28;
+        ctx.fillStyle = rbw;
+        drawRibbon(WIDTH * 1.55);
+        ctx.restore();
+        ctx.save();
+        ctx.globalAlpha = 1 - pP * 0.2;
+        ctx.fillStyle = rbw;
+        drawRibbon(WIDTH);
+        ctx.restore();
+        ctx.save();
+        ctx.globalAlpha = (1 - pP * 0.3) * 0.7;
+        ctx.fillStyle = fadeGrad;
+        drawRibbon(4);
+        ctx.restore();
+        ctx.save();
+        ctx.fillStyle = "rgba(255,255,255,0.95)";
+        ctx.globalAlpha = 1 - pP * 0.3;
+        const tNow = performance.now() / 1000;
+        for (let i = 0; i < 5; i++) {
+          const frac = (i + 1) / 6 + 0.04 * Math.sin(tNow * 3 + i);
+          const px = sx + dxSlide * frac;
+          const py = sy + dySlide * frac;
+          const perp = Math.sin(tNow * 4 + i * 1.7) * (WIDTH * 0.28);
+          const radius = 1.4 + Math.abs(Math.sin(tNow * 6 + i)) * 0.8;
+          ctx.beginPath();
+          ctx.arc(px + nx * perp, py + ny * perp, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      };
+
+      // Trail behind the prism during a regular prism+color swap.
+      const sa = swapAnimRef.current;
+      if (sa && sa.prismFromR !== undefined) {
+        const sxP = PAD + sa.prismFromC * CELL + PX / 2;
+        const syP = PAD + sa.prismFromR * CELL + PX / 2;
+        const sp = Math.min(1, (performance.now() - sa.start) / sa.dur);
+        const ease = sp * (2 - sp);
+        const fxP = sxP + (sa.prismToC - sa.prismFromC) * CELL * ease;
+        const fyP = syP + (sa.prismToR - sa.prismFromR) * CELL * ease;
+        drawPrismTrail(sxP, syP, fxP, fyP, sp);
+      }
+
       // Draw prism slide animation (+ rainbow trail for prism color).
       const ps = prismSlideRef.current;
       if (ps) {
@@ -1801,94 +1876,10 @@ export default function PrismGame() {
         const fy = PAD + ps.fromR * CELL + PX / 2 + (ps.toR - ps.fromR) * CELL * ease;
         const slideColor = ps.gemColor || "w";
 
-        // Polished rainbow trail: three layered passes (outer glow, main
-        // rainbow band, white core) + drifting sparkles along the ribbon.
-        // Colors come from a smooth linear gradient (perpendicular to
-        // motion) so there's no hard stripe edges — reads as "refracted
-        // light" rather than a kid-drawn flag.
         if (slideColor === "w") {
           const sx = PAD + ps.fromC * CELL + PX / 2;
           const sy = PAD + ps.fromR * CELL + PX / 2;
-          const dxSlide = fx - sx;
-          const dySlide = fy - sy;
-          const horizontal = ps.fromR === ps.toR;
-          const nx = horizontal ? 0 : 1;
-          const ny = horizontal ? 1 : 0;
-          const WIDTH = 22;
-
-          // Build a rainbow gradient perpendicular to the slide direction.
-          const g0x = sx - nx * (WIDTH / 2);
-          const g0y = sy - ny * (WIDTH / 2);
-          const g1x = sx + nx * (WIDTH / 2);
-          const g1y = sy + ny * (WIDTH / 2);
-          const rbw = ctx.createLinearGradient(g0x, g0y, g1x, g1y);
-          rbw.addColorStop(0.00, "#ff3d7f");
-          rbw.addColorStop(0.18, "#ff8833");
-          rbw.addColorStop(0.36, "#ffe400");
-          rbw.addColorStop(0.54, "#36d96b");
-          rbw.addColorStop(0.72, "#3f9ffc");
-          rbw.addColorStop(0.90, "#a248ff");
-          rbw.addColorStop(1.00, "#ff4db2");
-
-          // Tail-fade gradient — older end (start) fades out slightly so
-          // the ribbon looks like it's streaming from the prism rather
-          // than bolted to the cell.
-          const fadeGrad = ctx.createLinearGradient(sx, sy, fx, fy);
-          fadeGrad.addColorStop(0, "rgba(255,255,255,0.55)");
-          fadeGrad.addColorStop(1, "rgba(255,255,255,1)");
-
-          const drawRibbon = w => {
-            ctx.beginPath();
-            ctx.moveTo(sx - nx * (w / 2), sy - ny * (w / 2));
-            ctx.lineTo(fx - nx * (w / 2), fy - ny * (w / 2));
-            ctx.lineTo(fx + nx * (w / 2), fy + ny * (w / 2));
-            ctx.lineTo(sx + nx * (w / 2), sy + ny * (w / 2));
-            ctx.closePath();
-            ctx.fill();
-          };
-
-          // Pass 1 — wide outer glow. A wider translucent pass at
-          // 35% alpha gives the halo effect; shadowBlur is avoided here
-          // because it was costing ~2-3 ms per frame on Android.
-          ctx.save();
-          ctx.globalAlpha = (1 - pP * 0.2) * 0.28;
-          ctx.fillStyle = rbw;
-          drawRibbon(WIDTH * 1.55);
-          ctx.restore();
-
-          // Pass 2 — main rainbow band at full saturation.
-          ctx.save();
-          ctx.globalAlpha = 1 - pP * 0.2;
-          ctx.fillStyle = rbw;
-          drawRibbon(WIDTH);
-          ctx.restore();
-
-          // Pass 3 — bright white core stripe running the length (with
-          // tail fade so it feels like it's trailing off behind).
-          ctx.save();
-          ctx.globalAlpha = (1 - pP * 0.3) * 0.7;
-          ctx.fillStyle = fadeGrad;
-          drawRibbon(4);
-          ctx.restore();
-
-          // Pass 4 — drifting sparkles. Each sparkle sits along the ribbon
-          // path at a fractional position, jittered perpendicular to the
-          // motion via sine-waves keyed on wall-clock time.
-          ctx.save();
-          ctx.fillStyle = "rgba(255,255,255,0.95)";
-          ctx.globalAlpha = 1 - pP * 0.3;
-          const now = performance.now() / 1000;
-          for (let i = 0; i < 5; i++) {
-            const frac = (i + 1) / 6 + 0.04 * Math.sin(now * 3 + i);
-            const px = sx + dxSlide * frac;
-            const py = sy + dySlide * frac;
-            const perp = Math.sin(now * 4 + i * 1.7) * (WIDTH * 0.28);
-            const radius = 1.4 + Math.abs(Math.sin(now * 6 + i)) * 0.8;
-            ctx.beginPath();
-            ctx.arc(px + nx * perp, py + ny * perp, radius, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          ctx.restore();
+          drawPrismTrail(sx, sy, fx, fy, pP);
         }
 
         ctx.save();
