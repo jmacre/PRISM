@@ -394,8 +394,8 @@ export default function PrismGame() {
     }
     // Smooth menu → game transition: fade black IN, swap screens under
     // cover of the black, fade black OUT, THEN start the music. Music
-    // is deferred to after the fade-out so it doesn't audibly kick in
-    // halfway through the transition.
+    // is deferred well past the fade-out so the transition is clearly
+    // over before any music plays.
     setTransitioning(true);
     setTimeout(() => {
       wipeRunState();
@@ -404,8 +404,9 @@ export default function PrismGame() {
       setScreen("play");
       musicReady.current = true;
       requestAnimationFrame(() => setTransitioning(false));
-      // Fade-out is .28s — start music just after it completes.
-      setTimeout(() => AUDIO.forceStart(), 320);
+      // Fade-out is .28s — wait an additional 500 ms past that so the
+      // game is fully visible and stable before music kicks in.
+      setTimeout(() => AUDIO.forceStart(), 600);
     }, 500);
   }, []);
 
@@ -419,8 +420,8 @@ export default function PrismGame() {
       setScreen("play");
       musicReady.current = true;
       requestAnimationFrame(() => setTransitioning(false));
-      // Music after fade-out so it doesn't kick in mid-transition.
-      setTimeout(() => AUDIO.forceStart(), 320);
+      // Music well after fade-out so the transition is clearly over.
+      setTimeout(() => AUDIO.forceStart(), 600);
     }, 280);
   }, []);
 
