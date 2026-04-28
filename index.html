@@ -7,6 +7,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>PRISM</title>
+    <!-- Preload heavy gameplay assets so the menu→game transition isn't
+         choppy waiting on the music file or the prism icon to fetch. -->
+    <link rel="preload" as="audio" href="music.wav" />
+    <link rel="preload" as="image" href="prism-gem.png" />
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body, #root {

@@ -19,6 +19,13 @@ export function MainMenu({ best, onPlay, onOpenTutorial, showAbout, onOpenAbout,
       try {
         warmupRenderer();
       } catch {}
+      // Kick the AudioContext + music element into existence as well so
+      // music.wav starts buffering during the menu screen instead of
+      // mid-transition. ctx is created in suspended state (no user
+      // gesture yet) — actual playback still waits for PLAY.
+      try {
+        AUDIO.init();
+      } catch {}
     });
     return () => cancelAnimationFrame(id);
   }, []);

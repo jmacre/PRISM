@@ -87,7 +87,8 @@ const grad = `
 </svg>
 `;
 
-// Title + tagline rendered as SVG so it's crisp at 1024×500.
+// Title + tagline rendered as SVG. Tagline kept short so it stays in
+// the left half of the graphic — the gem occupies x≈544+ on the right.
 const text = `
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500">
   <defs>
@@ -98,26 +99,19 @@ const text = `
       <stop offset="100%" stop-color="#33eebb"/>
     </linearGradient>
   </defs>
-  <text x="64" y="240"
+  <text x="64" y="265"
         font-family="Orbitron, Arial Black, sans-serif"
         font-weight="900"
-        font-size="138"
-        letter-spacing="22"
+        font-size="124"
+        letter-spacing="18"
         fill="url(#prismGrad)">PRISM</text>
-  <text x="64" y="305"
-        font-family="Inter, Arial, sans-serif"
-        font-weight="500"
+  <text x="64" y="320"
+        font-family="Orbitron, Arial Black, sans-serif"
+        font-weight="700"
         font-size="28"
-        letter-spacing="3"
-        fill="#b09acc"
-        opacity="0.9">NEON MATCH-3 WITH CASCADES &amp; PRISM COMBOS</text>
-  <text x="64" y="360"
-        font-family="Inter, Arial, sans-serif"
-        font-weight="500"
-        font-size="22"
-        letter-spacing="2"
+        letter-spacing="5"
         fill="#cc88ff"
-        opacity="0.85">No ads. No purchases. Just gems.</text>
+        opacity="0.95">MATCH. CASCADE. WIN.</text>
 </svg>
 `;
 
