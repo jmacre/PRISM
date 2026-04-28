@@ -194,9 +194,10 @@ export default function PrismGame() {
         const display = barDisplayRef.current;
         let next;
         if (target > display + 0.005) {
-          // Refill — ease up by ~18% of remaining gap each frame
-          // (≈10-frame settle, ~165 ms at 60 FPS).
-          next = display + (target - display) * 0.18;
+          // Refill — ease up by ~9% of remaining gap each frame
+          // (≈25-frame settle, ~415 ms at 60 FPS) so addBonus / fever
+          // top-ups visibly glide instead of snapping.
+          next = display + (target - display) * 0.09;
           if (next > target - 0.002) next = target;
         } else {
           // Drain / hold — match exactly.
