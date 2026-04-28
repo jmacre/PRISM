@@ -2565,8 +2565,14 @@ export default function PrismGame() {
           )}
           {/* Empty dim overlay during game→menu fade so the board stays
               dark instead of flashing bright between the pause overlay
-              unmounting and the black fade-to-menu fully covering. */}
-          {quittingGame && !gameOver && <div className="overlay" />}
+              unmounting and the black fade-to-menu fully covering.
+              animation:none disables the .overlay class's goIn fade-in
+              (0→1 opacity), which would otherwise leave the board
+              bright for the first 150 ms after the pause overlay
+              unmounts. */}
+          {quittingGame && !gameOver && (
+            <div className="overlay" style={{ animation: "none" }} />
+          )}
         </div>
         {/* Score floaters live OUTSIDE .pg (which clips its overflow)
             so a big +N number near the board's edge isn't cut off.
