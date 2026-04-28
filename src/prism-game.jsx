@@ -420,6 +420,13 @@ export default function PrismGame() {
   }, []);
 
   const backToMenu = useCallback(() => {
+    // Tear down the pause overlay BEFORE the fade-to-black starts —
+    // otherwise the overlay flashes back to its main "PAUSED" screen
+    // (because onPauseConfirm cleared confirmAction first) for the
+    // ~280 ms it takes the black overlay to fade in over it.
+    setPaused(false);
+    setConfirmAction(null);
+    pausedRef.current = false;
     // Symmetric fade-through-black: music stops immediately, fade in
     // black, swap screen + state under cover, fade back out.
     AUDIO.stopMusic();
