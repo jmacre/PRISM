@@ -556,12 +556,12 @@ export const AUDIO = (() => {
         sn(2600, 0.02, 0.03, "sine", t, 1400);
       }
       if (type === "playStart") {
-        // PLAY button — clean rising perfect-fifth (A4 → E5) with a
-        // single octave shimmer. Three voices total so it has some
-        // body without crowding the spectrum.
-        sn(440.00, 0.40, 0.14, "triangle", t + 0.00, 440.00); // A4 root
-        sn(659.25, 0.40, 0.11, "triangle", t + 0.09, 659.25); // E5 5th
-        sn(880.00, 0.30, 0.06, "sine", t + 0.18, 880.00);     // A5 octave shimmer
+        // PLAY button — short and snappy. The screen transitions to
+        // gameplay almost immediately, so a long chime gets clipped or
+        // muddied by the in-game music starting. Total ~180 ms.
+        sn(440.00, 0.16, 0.15, "triangle", t + 0.00, 440.00); // A4
+        sn(659.25, 0.18, 0.11, "triangle", t + 0.04, 659.25); // E5 5th
+        sn(880.00, 0.14, 0.07, "sine", t + 0.08, 880.00);     // A5 sparkle
       }
       if (type === "clack") {
         // Mid-range knock. Fast pitch sweep (700→200 Hz in ~50 ms) gives
