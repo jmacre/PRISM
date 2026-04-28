@@ -333,7 +333,21 @@ export const AUDIO = (() => {
       _lastSfx = type;
       _lastSfxTime = now2;
 
-      const t = ctx.currentTime;
+      // If the audio context isn't running yet (just created or
+      // suspended-and-mid-resume after a user gesture), schedule notes
+      // ~80 ms in the future so they don't get dropped or compressed
+      // when the audio engine catches up. Without this lead-in, a chime
+      // like playStart loses its second/third notes — the first plays,
+      // the rest land in the past relative to ctx.currentTime by the
+      // time the engine starts processing.
+      let leadIn = 0;
+      try {
+        if (ctx.state !== "running") {
+          ctx.resume();
+          leadIn = 0.08;
+        }
+      } catch {}
+      const t = ctx.currentTime + leadIn;
 
       // Local helper: one envelope-shaped oscillator note. Routed through
       // `master` (and thus the compressor) rather than directly to
