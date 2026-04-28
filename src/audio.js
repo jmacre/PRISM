@@ -556,12 +556,17 @@ export const AUDIO = (() => {
         sn(2600, 0.02, 0.03, "sine", t, 1400);
       }
       if (type === "playStart") {
-        // PLAY button — soft two-note chime. Lower register (E5 → B5
-        // perfect fifth) so it feels warm instead of shrill, no high
-        // shimmer layer (was the source of the "annoying" character),
-        // total duration ~0.35 s.
-        sn(440.00, 0.32, 0.13, "sine", t + 0.00, 440.00);  // A4
-        sn(659.25, 0.38, 0.10, "sine", t + 0.06, 659.25);  // E5 (fifth above)
+        // PLAY button — anthemic A-major arpeggio with a warm sub-bass
+        // and a bright shimmer on top. Triangle waves on the main notes
+        // give it a slightly bell-like body without the shrillness of
+        // pure sines, and the staggered timing creates a rising "swell"
+        // rather than a single chord hit.
+        sn(110.00, 0.55, 0.10, "sine", t + 0.00, 110.00);     // A2 sub-bass
+        sn(440.00, 0.45, 0.13, "triangle", t + 0.02, 440.00); // A4 root
+        sn(554.37, 0.42, 0.10, "triangle", t + 0.10, 554.37); // C#5 major-3rd
+        sn(659.25, 0.50, 0.11, "triangle", t + 0.18, 659.25); // E5 5th
+        sn(880.00, 0.40, 0.07, "sine", t + 0.26, 880.00);     // A5 octave shimmer
+        sn(1318.51, 0.30, 0.04, "sine", t + 0.30, 1318.51);   // E6 high sparkle
       }
       if (type === "clack") {
         // Mid-range knock. Fast pitch sweep (700→200 Hz in ~50 ms) gives
