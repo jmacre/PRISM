@@ -91,6 +91,10 @@ export default function PrismGame() {
   const bannerTimer = useRef(null);
   const touchRef = useRef(null);
   const barRef = useRef(null);
+  // The displayed bar value, lerped toward `frac` each frame. Used to
+  // smooth UPWARD jumps (refills) without lagging on DOWNWARD drain —
+  // drain is matched instantly, refills ease in over ~10-15 frames.
+  const barDisplayRef = useRef(1);
   const secRef = useRef(null);
   const limitRef = useRef(null);
   const pgRef = useRef(null);
@@ -175,11 +179,27 @@ export default function PrismGame() {
       // we still update the bar so the orange tier renders.
       const uiFrozen = pausedRef.current || busyRef.current || !startedRef.current;
 
-      // Update the timer bar (direct DOM write — we'd rather skip a React
-      // render for something that changes every frame).
+      // Update the timer bar. We separate "display" from "target":
+      //   - Downward changes (drain) snap instantly so the bar tracks
+      //     the numeric readout to the pixel.
+      //   - Upward changes (refills from addBonus / milestone / fever)
+      //     ease in over a handful of frames so the bar doesn't pop.
       if (barRef.current && !uiFrozen) {
+        const target = frac;
+        const display = barDisplayRef.current;
+        let next;
+        if (target > display + 0.005) {
+          // Refill — ease up by ~18% of remaining gap each frame
+          // (≈10-frame settle, ~165 ms at 60 FPS).
+          next = display + (target - display) * 0.18;
+          if (next > target - 0.002) next = target;
+        } else {
+          // Drain / hold — match exactly.
+          next = target;
+        }
+        barDisplayRef.current = next;
         const tier = isFever ? "fever" : pickTier(frac, barRef.current.dataset.tier);
-        barRef.current.style.transform = `scaleX(${frac})`;
+        barRef.current.style.transform = `scaleX(${next})`;
         if (barRef.current.dataset.tier !== tier) {
           barRef.current.className = `tbar ${tier}`;
           barRef.current.dataset.tier = tier;
@@ -2349,6 +2369,7 @@ export default function PrismGame() {
       barRef.current.dataset.tier = "ok";
       barRef.current.style.transition = "";
     }
+    barDisplayRef.current = 1;
     if (secRef.current) {
       secRef.current.textContent = `${(getMaxMs(0) / 1000).toFixed(1)}s`;
       secRef.current.className = "tsec ok";
