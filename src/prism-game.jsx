@@ -179,10 +179,13 @@ export default function PrismGame() {
       const frac = Math.max(0, Math.min(1, remain / maxMs));
       const isFever = feverRef.current;
 
-      // UI-frozen: bar/text stop updating while paused / busy / not-started.
-      // During fever the timer doesn't drain (drainFrozen handles that) but
-      // we still update the bar so the orange tier renders.
-      const uiFrozen = pausedRef.current || busyRef.current || !startedRef.current;
+      // UI-frozen: bar/text only stop while paused or not-yet-started.
+      // We DO allow updates during busy so an addBonus / milestone /
+      // fever refill can visibly glide up while the swap-animation +
+      // cascade are still running. remainingRef itself is locked by
+      // drainFrozen during busy, so the only way it can change in that
+      // window is upward (top-ups), which is exactly what we want.
+      const uiFrozen = pausedRef.current || !startedRef.current;
 
       // Update the timer bar. We separate "display" from "target":
       //   - Downward changes (drain) snap instantly so the bar tracks
