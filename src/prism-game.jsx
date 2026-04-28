@@ -649,6 +649,28 @@ export default function PrismGame() {
 
       const pts = calcScore(toClear.size, specTypes, level, feverRef.current);
 
+      // Compute every multiplier that contributes to the score BEFORE
+      // showing the floater so the displayed number matches the actual
+      // points awarded. Previously the floater showed only `pts`, but
+      // setScore added `pts * streak + wildcardBonus + cascadeMult` —
+      // the displayed number was usually much smaller than what the
+      // score actually went up by.
+      const smult = streakMult(streakRef.current);
+      const wildcardBonus = wildcardUsed ? 10000 : 0;
+      const MULT_CAP = 20;
+      let cascadeMult = 1;
+      for (const k of toClear) {
+        const { r, c } = parseKey(k);
+        const t = b[r]?.[c]?.type;
+        if (t === "mult2" || t === "mult5" || t === "mult10") {
+          cascadeMult = Math.min(MULT_CAP, cascadeMult * (t === "mult10" ? 10 : t === "mult5" ? 5 : 2));
+          AUDIO.sfx(t);
+          setBoardFlash(t);
+          setTimeout(() => setBoardFlash(null), 600);
+        }
+      }
+      const totalPts = Math.round(pts * smult * cascadeMult) + wildcardBonus;
+
       // Score floater at the centre of the match.
       const { px, py } = matchCentroid(matched);
       const floatType = specTypes.includes("vortex")
@@ -663,44 +685,18 @@ export default function PrismGame() {
                 ? "fever"
                 : "normal";
       const floatText =
-        feverRef.current && !specTypes.length ? `🔥+${pts.toLocaleString()}` : `+${pts.toLocaleString()}`;
+        feverRef.current && !specTypes.length
+          ? `🔥+${totalPts.toLocaleString()}`
+          : `+${totalPts.toLocaleString()}`;
       addFloater(floatText, px, py, floatType);
 
-      // Apply points (streak multiplier + wildcard bonus baked in).
-      const wildcardBonus = wildcardUsed ? 10000 : 0;
+      // Apply the (single) total score increment.
       setScore(s => {
-        const smult = streakMult(streakRef.current);
-        const ns = s + Math.round(pts * smult) + wildcardBonus;
+        const ns = s + totalPts;
         scoreRefForSave.current = ns;
         checkMilestone(ns);
         return ns;
       });
-
-      // One-shot multiplier tiles — consumed whenever they're cleared, no
-      // matter the cause. Each multiplier stacks, but the total is capped
-      // so a lucky vortex + multiple mult tiles can't runaway into the
-      // tens of millions (which made the best-score meaningless).
-      const MULT_CAP = 20;
-      let cascadeMult = 1;
-      for (const k of toClear) {
-        const { r, c } = parseKey(k);
-        const t = b[r]?.[c]?.type;
-        if (t === "mult2" || t === "mult5" || t === "mult10") {
-          cascadeMult = Math.min(MULT_CAP, cascadeMult * (t === "mult10" ? 10 : t === "mult5" ? 5 : 2));
-          AUDIO.sfx(t);
-          setBoardFlash(t);
-          setTimeout(() => setBoardFlash(null), 600);
-        }
-      }
-      // Apply one-shot mult to the score we already added
-      if (cascadeMult > 1) {
-        setScore(s => {
-          const bonus = Math.round(pts * streakMult(streakRef.current) * (cascadeMult - 1));
-          const ns = s + bonus;
-          scoreRefForSave.current = ns;
-          return ns;
-        });
-      }
       // If a shuffle power-up was triggered, mark it so finalize can reshuffle
       // the board after the match animation. We demote the gem back to normal
       // so it doesn't retrigger on the next cascade pass.
