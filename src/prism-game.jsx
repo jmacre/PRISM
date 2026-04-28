@@ -902,10 +902,14 @@ export default function PrismGame() {
         }
 
         // Try another cascade pass after the drop-in finishes animating.
+        // Bumped from 380 ms to 500 ms now that drop animations are
+        // longer (0.45 + dropDist*0.06 s for falls, 0.75 s for fresh) —
+        // gives the drop time to visibly settle before the next cascade
+        // starts clearing.
         pauseAwareTimeout(() => {
           setFreshGems(new Set());
           cascade(filled, level + 1);
-        }, 380);
+        }, 500);
       };
 
       if (isInferno) {
@@ -1507,9 +1511,9 @@ export default function PrismGame() {
           // Drop animation — smooth bounce landing (new gems)
           if (isFresh) {
             if (!freshStart.current) freshStart.current = now; // sync to first actual draw frame
-            const delay = r * 0.045;
+            const delay = r * 0.06;
             const elapsed = Math.max(0, (now - freshStart.current) / 1000 - delay);
-            const dur = 0.55;
+            const dur = 0.75;
             if (elapsed < dur) {
               const p = Math.min(1, elapsed / dur);
               let ease;
@@ -1560,7 +1564,9 @@ export default function PrismGame() {
           const dropDist = dropsRef.current[key];
           if (!isFresh && dropDist && dropDist > 0) {
             const elapsed = (now - dropStart.current) / 1000;
-            const dur = 0.3 + dropDist * 0.04; // slightly longer for bigger drops
+            // Longer base + steeper per-cell scaling than before so big
+            // drops have time to ease in/out instead of looking jumpy.
+            const dur = 0.45 + dropDist * 0.06;
             if (elapsed < dur) {
               const p = Math.min(1, elapsed / dur);
               // Smooth ease-out with slight bounce
