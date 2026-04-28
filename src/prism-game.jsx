@@ -387,22 +387,20 @@ export default function PrismGame() {
       setTutStep(0);
       return;
     }
-    // Smooth menu → game transition: fade a black overlay IN, swap
-    // screens under cover of the black, then fade it back OUT. Hold
-    // is long enough that the PLAY chime gets to land before the
-    // game music starts — chime plays solo during the fade-to-black,
-    // game appears as it fades back out.
+    // Smooth menu → game transition: fade black IN, swap screens under
+    // cover of the black, fade black OUT, THEN start the music. Music
+    // is deferred to after the fade-out so it doesn't audibly kick in
+    // halfway through the transition.
     setTransitioning(true);
     setTimeout(() => {
       wipeRunState();
       setBoard(initBoard());
       triggerBoardDrop();
       setScreen("play");
-      AUDIO.forceStart();
       musicReady.current = true;
-      // Clear the overlay on the next frame so CSS sees an opacity change
-      // and transitions back out instead of snapping.
       requestAnimationFrame(() => setTransitioning(false));
+      // Fade-out is .28s — start music just after it completes.
+      setTimeout(() => AUDIO.forceStart(), 320);
     }, 500);
   }, []);
 
@@ -414,20 +412,27 @@ export default function PrismGame() {
       setBoard(initBoard());
       triggerBoardDrop();
       setScreen("play");
-      AUDIO.forceStart();
       musicReady.current = true;
       requestAnimationFrame(() => setTransitioning(false));
+      // Music after fade-out so it doesn't kick in mid-transition.
+      setTimeout(() => AUDIO.forceStart(), 320);
     }, 280);
   }, []);
 
   const backToMenu = useCallback(() => {
-    stopTimer();
+    // Symmetric fade-through-black: music stops immediately, fade in
+    // black, swap screen + state under cover, fade back out.
     AUDIO.stopMusic();
-    AUDIO.setTempo(118);
-    wipeRunState();
-    musicReady.current = false;
-    setBest(loadBest());
-    setScreen("menu");
+    setTransitioning(true);
+    setTimeout(() => {
+      stopTimer();
+      AUDIO.setTempo(118);
+      wipeRunState();
+      musicReady.current = false;
+      setBest(loadBest());
+      setScreen("menu");
+      requestAnimationFrame(() => setTransitioning(false));
+    }, 350);
   }, []);
 
   const addBonus = useCallback(() => {
